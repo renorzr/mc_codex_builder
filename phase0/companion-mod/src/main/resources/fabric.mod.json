@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "minecraft_codex_companion",
   "version": "${version}",
-  "name": "Minecraft Codex Companion (Phase 0)",
-  "description": "Phase 0 dependency probe for local chat interception.",
+  "name": "Minecraft Codex Companion",
+  "description": "Local chat commands and Gateway connection for Minecraft Codex Builder.",
   "environment": "client",
   "entrypoints": {
     "client": [

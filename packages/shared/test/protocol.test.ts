@@ -1,0 +1,19 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { clientMessageSchema, envelope, parseChatCommand } from "../src/index.js";
+
+test("only explicit prefixes create tasks; validates control arguments", () => {
+  assert.deepEqual(parseChatCommand("@CODEX 建一个塔"), { kind: "task", text: "建一个塔" });
+  assert.deepEqual(parseChatCommand("!codex stop task-123"), { kind: "stop", taskId: "task-123" });
+  for (const text of ["hello", "@codextra foo", "@codex", "!codex status junk", "!codex approve", "!codex unknown"]) {
+    assert.throws(() => parseChatCommand(text));
+  }
+});
+
+test("wire contract rejects wrong version, oversized text and extra fields", () => {
+  const message = envelope("chat.command", { worldSessionId: "test-world", text: "@codex hello" });
+  assert.equal(clientMessageSchema.safeParse(message).success, true);
+  assert.equal(clientMessageSchema.safeParse({ ...message, protocolVersion: 2 }).success, false);
+  assert.equal(clientMessageSchema.safeParse({ ...message, payload: { ...message.payload, token: "secret" } }).success, false);
+  assert.equal(clientMessageSchema.safeParse({ ...message, payload: { ...message.payload, text: "x".repeat(8001) } }).success, false);
+});

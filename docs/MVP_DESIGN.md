@@ -1,5 +1,7 @@
 # Minecraft Codex Builder — MVP 技术设计与开发任务书
 
+> 实现进度（2026-11-09）：Phase 1 的 Linux 无游戏开发链路已落地，详见 [本机开发报告](PHASE1_REPORT.md)。下文保留原始设计；当前协议以 [protocol.md](protocol.md) 为准，Companion 继续使用 `phase0/companion-mod` 路径。游戏内聊天最终验收、世界观察与建造仍待后续完成。
+
 ## 1. 项目目标
 
 开发一个运行在 Windows 本机的 Minecraft AI 建造助手。
@@ -184,6 +186,10 @@ minecraft-codex-builder/
 │   └── gateway.example.json
 │
 ├── docs/
+│   ├── README.md
+│   ├── MVP_DESIGN.md
+│   ├── PHASE0_REPORT.md
+│   ├── PHASE1_REPORT.md
 │   ├── architecture.md
 │   ├── protocol.md
 │   └── development.md
@@ -191,8 +197,7 @@ minecraft-codex-builder/
 ├── scripts/
 │
 ├── AGENTS.md
-├── package.json
-└── README.md
+└── package.json
 ```
 
 具体 Java 包名、Gradle 插件版本和 Fabric API 版本由开发时验证的 Minecraft 1.21.11 依赖决定。

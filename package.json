@@ -1,0 +1,25 @@
+{
+  "name": "minecraft-codex-builder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/shared", "packages/gateway"],
+  "engines": { "node": ">=22.16" },
+  "scripts": {
+    "build": "tsc -b packages/shared packages/gateway",
+    "typecheck": "tsc -b packages/shared packages/gateway --pretty false",
+    "test": "npm run build && node --import tsx --test packages/shared/test/*.test.ts packages/gateway/test/*.test.ts",
+    "dev": "npm run build && node packages/gateway/dist/index.js",
+    "chat": "node packages/gateway/dist/terminal.js",
+    "smoke": "npm run build && node packages/gateway/dist/smoke.js",
+    "codex:generate": "node scripts/generate-codex-protocol.mjs",
+    "companion:config": "npm run build && node scripts/companion-config.mjs",
+    "test:java": "npm run build && node scripts/java-check.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -9,12 +9,18 @@
 
 # Node.js
 **/node_modules/
+**/dist/
+*.tsbuildinfo
+/.local/
+/.env
 
 # Minecraft runtime data
 **/eula.txt
 **/server.properties
 **/world/
 **/config/mcpfabric.config.json
+**/minecraft-codex.json
+**/gateway-token
 **/mcpfabric-audit.jsonl
 
 # Compiled and temporary files

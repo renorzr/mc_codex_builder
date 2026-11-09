@@ -1,0 +1,7 @@
+{
+  "name": "@mccodex/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@mccodex/shared": "0.1.0", "ws": "^8.18.3", "zod": "^4.1.0" }
+}

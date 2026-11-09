@@ -2,7 +2,7 @@
 
 验证日期：2026-11-09  
 目标平台：Windows 11 Enterprise 10.0.26200 x64  
-设计依据：`MVP_DESIGN.md` 的 Phase 0（第 692 行起）
+设计依据：[MVP_DESIGN.md](MVP_DESIGN.md) 的 Phase 0
 
 ## 1. 结论摘要
 
