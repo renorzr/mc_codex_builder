@@ -1,0 +1,7 @@
+{
+  "name": "minecraft-codex-gateway-phase0-probe",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.16" },
+  "dependencies": { "ws": "^8.18.3" }
+}

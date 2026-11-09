@@ -1,0 +1,834 @@
+﻿{
+  "sourceCommit": "a49a10641af2da813bb965e09114f7052c25ab35",
+  "mcpServerVersion": "0.9.1",
+  "advertisedToolCount": 105,
+  "counts": {
+    "bridge": 71,
+    "agent": 26,
+    "script": 5,
+    "dashboard": 3
+  },
+  "bridge": [
+    {
+      "name": "get_status",
+      "method": "info.status",
+      "title": "Server/client status",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_capabilities",
+      "method": "info.capabilities",
+      "title": "List capabilities",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_block",
+      "method": "world.getBlock",
+      "title": "Get block at position",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_blocks_region",
+      "method": "world.getBlocks",
+      "title": "Scan a cuboid region",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "find_blocks",
+      "method": "world.findBlocks",
+      "title": "Find nearby blocks by id",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_time_and_weather",
+      "method": "world.getTimeAndWeather",
+      "title": "Time & weather",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_dimensions",
+      "method": "world.getDimensions",
+      "title": "List dimensions",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "raycast",
+      "method": "world.raycast",
+      "title": "Raycast from a point",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_block",
+      "method": "world.setBlock",
+      "title": "Set a block",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "fill_blocks",
+      "method": "world.fill",
+      "title": "Fill a region with a block",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_time",
+      "method": "world.setTime",
+      "title": "Set time of day",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_weather",
+      "method": "world.setWeather",
+      "title": "Set weather",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "query_entities",
+      "method": "entities.query",
+      "title": "Query entities",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_entity",
+      "method": "entities.get",
+      "title": "Get entity details",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "summon_entity",
+      "method": "entities.summon",
+      "title": "Summon entity",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "remove_entity",
+      "method": "entities.remove",
+      "title": "Remove entity",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_players",
+      "method": "players.list",
+      "title": "List online players",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_player",
+      "method": "players.get",
+      "title": "Get player details",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "teleport_player",
+      "method": "players.teleport",
+      "title": "Teleport player",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_gamemode",
+      "method": "players.setGameMode",
+      "title": "Set player game mode",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "give_item",
+      "method": "players.give",
+      "title": "Give item to player",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_effect",
+      "method": "players.applyEffect",
+      "title": "Apply status effect",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "message_player",
+      "method": "players.message",
+      "title": "Send system message",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "kick_player",
+      "method": "players.kick",
+      "title": "Kick player",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "run_command",
+      "method": "command.run",
+      "title": "Run a server command",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "send_chat",
+      "method": "chat.send",
+      "title": "Send chat message",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "show_message",
+      "method": "chat.showLocal",
+      "title": "Show a message to the player",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_recent_chat",
+      "method": "chat.getRecent",
+      "title": "Get recent chat",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_self",
+      "method": "player.getState",
+      "title": "Get local player state",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_inventory",
+      "method": "player.getInventory",
+      "title": "Get inventory",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_equipment",
+      "method": "player.getEquipment",
+      "title": "Get equipment",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_status_effects",
+      "method": "player.getStatusEffects",
+      "title": "Get active effects",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_movement",
+      "method": "control.setInput",
+      "title": "Set movement input",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "stop_movement",
+      "method": "control.stop",
+      "title": "Release all movement",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "look",
+      "method": "control.look",
+      "title": "Set/adjust look angles",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "look_at",
+      "method": "control.lookAt",
+      "title": "Look at a point",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "jump",
+      "method": "control.jumpOnce",
+      "title": "Jump once",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "start_using_item",
+      "method": "control.startUsing",
+      "title": "Start using held item",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "stop_using_item",
+      "method": "control.stopUsing",
+      "title": "Stop using held item",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "break_block",
+      "method": "interact.breakBlock",
+      "title": "Break a block",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "place_block",
+      "method": "interact.placeBlock",
+      "title": "Place held block",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "place_block_at",
+      "method": "interact.placeAt",
+      "title": "Place held block with a given state",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "use_item",
+      "method": "interact.useItem",
+      "title": "Use item / right-click",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "attack_entity",
+      "method": "interact.attackEntity",
+      "title": "Attack entity",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "use_entity",
+      "method": "interact.useEntity",
+      "title": "Interact with entity",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "drop_held_item",
+      "method": "interact.dropItem",
+      "title": "Drop held item",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "select_hotbar_slot",
+      "method": "inventory.selectHotbar",
+      "title": "Select hotbar slot",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "drop_slot",
+      "method": "inventory.dropSlot",
+      "title": "Drop a specific slot",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "swap_slots",
+      "method": "inventory.swapSlots",
+      "title": "Swap two inventory slots",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "screenshot",
+      "method": "vision.screenshot",
+      "title": "Capture screenshot",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "describe_scene",
+      "method": "vision.describeScene",
+      "title": "Describe visible scene",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "navigate_to",
+      "method": "nav.pathTo",
+      "title": "Navigate to a position",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "navigation_status",
+      "method": "nav.status",
+      "title": "Navigation status",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "stop_navigation",
+      "method": "nav.stop",
+      "title": "Stop navigation",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_screen",
+      "method": "screen.get",
+      "title": "Current screen",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "close_screen",
+      "method": "screen.close",
+      "title": "Close the open screen",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_worlds",
+      "method": "session.worlds",
+      "title": "List worlds and servers",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "join_world",
+      "method": "session.join",
+      "title": "Join a world or server",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_ui",
+      "method": "ui.widgets",
+      "title": "List the widgets of the open screen",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "click_widget",
+      "method": "ui.click",
+      "title": "Click a widget",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_text_field",
+      "method": "ui.setText",
+      "title": "Type into a text field",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "supervised_status",
+      "method": "supervised.status",
+      "title": "Supervised mode status",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "supervised_stop",
+      "method": "supervised.stop",
+      "title": "Stop supervised actions",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "supervised_input",
+      "method": "supervised.input",
+      "title": "One supervised input sample",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "supervised_read_block",
+      "method": "supervised.readBlock",
+      "title": "Supervised block readback",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "supervised_set_block",
+      "method": "supervised.setBlock",
+      "title": "Supervised block change",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "supervised_command",
+      "method": "supervised.command",
+      "title": "Supervised command",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "supervised_enter_world",
+      "method": "supervised.enterWorld",
+      "title": "Enter an approved save",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "supervised_leave_world",
+      "method": "supervised.leaveWorld",
+      "title": "Save and leave the world",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "supervised_reconcile",
+      "method": "supervised.reconcile",
+      "title": "Reconcile a supervised action",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "poll_events",
+      "method": "events.getRecent",
+      "title": "Poll recent game events",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ],
+  "agent": [
+    "agent_brief",
+    "observe",
+    "map_view",
+    "surroundings",
+    "remember",
+    "recall",
+    "memory_update",
+    "memory_verify",
+    "goal_add",
+    "goal_update",
+    "goal_list",
+    "plan_craft",
+    "get_recipes",
+    "explore_next",
+    "build_plan",
+    "build_verify",
+    "build_structure",
+    "travel_to",
+    "explore",
+    "collect_blocks",
+    "craft_item",
+    "job_status",
+    "job_cancel",
+    "open_container",
+    "container_transfer",
+    "close_container"
+  ],
+  "script": [
+    "run_script",
+    "save_skill",
+    "list_skills",
+    "run_skill",
+    "delete_skill"
+  ],
+  "dashboard": [
+    "open_dashboard",
+    "dashboard_state",
+    "dashboard_stop"
+  ]
+}

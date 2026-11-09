@@ -1,0 +1,29 @@
+# Phase 0 downloaded upstream sources, toolchains, schemas, and caches
+/.phase0/
+
+# Gradle and Fabric Loom outputs
+**/.gradle/
+**/build/
+**/run/
+**/logs/
+
+# Node.js
+**/node_modules/
+
+# Minecraft runtime data
+**/eula.txt
+**/server.properties
+**/world/
+**/config/mcpfabric.config.json
+**/mcpfabric-audit.jsonl
+
+# Compiled and temporary files
+*.class
+*.log
+*.tmp
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

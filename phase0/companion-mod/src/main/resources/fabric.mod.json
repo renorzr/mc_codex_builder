@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "minecraft_codex_companion",
+  "version": "${version}",
+  "name": "Minecraft Codex Companion (Phase 0)",
+  "description": "Phase 0 dependency probe for local chat interception.",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.mccodex.companion.CodexCompanionClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": ">=0.141.6+1.21.11"
+  }
+}
