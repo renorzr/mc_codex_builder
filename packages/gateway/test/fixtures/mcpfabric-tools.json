@@ -369,6 +369,98 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    },
+    {
+      "name": "get_screen",
+      "description": "Client-only. Report where the client is: inWorld, the open screen as a coarse kind (none, pause, chat, container, death, title, multiplayer, singleplayer, disconnected, connecting, loading, other), whether the game is paused, whether join_world can run now (canJoin), and the id of the world joined last in this game run. Call it when client tools fail with no_client_player or the player stops reacting.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "fill_blocks",
+      "description": "Fill the cuboid between two corners with one block id. Volume is capped for safety. Requires a server.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "X coordinate (east/west)."
+              },
+              "y": {
+                "type": "number",
+                "description": "Y coordinate (height)."
+              },
+              "z": {
+                "type": "number",
+                "description": "Z coordinate (north/south)."
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "additionalProperties": false
+          },
+          "to": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "X coordinate (east/west)."
+              },
+              "y": {
+                "type": "number",
+                "description": "Y coordinate (height)."
+              },
+              "z": {
+                "type": "number",
+                "description": "Z coordinate (north/south)."
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "additionalProperties": false
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Block id to fill with."
+          },
+          "dimension": {
+            "description": "Dimension id, e.g. \"minecraft:overworld\", \"minecraft:the_nether\". Defaults to the current/overworld dimension.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "blockId"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
     }
   ]
 }

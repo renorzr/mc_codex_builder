@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+export * from "./build-plan.js";
+import type { BuildSummary } from "./build-plan.js";
 
 export const PROTOCOL_VERSION = 1;
 export const MAX_MESSAGE_BYTES = 64 * 1024;
@@ -19,7 +21,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 ]);
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
-export type TaskStatus = "QUEUED" | "RUNNING" | "CANCELLING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type TaskStatus = "QUEUED" | "RUNNING" | "AWAITING_APPROVAL" | "BUILDING" | "VERIFYING" | "CANCELLING" | "COMPLETED" | "FAILED" | "CANCELLED";
 export interface TaskSnapshot {
   id: string;
   worldSessionId: string;
@@ -29,14 +31,16 @@ export interface TaskSnapshot {
   updatedAt: string;
   result?: string;
   error?: string;
+  build?: BuildSummary;
 }
 export interface ServerPayloads {
-  "gateway.hello": { backend: "mock" | "codex"; writesEnabled: false; mode?: "chat" | "observe" };
+  "gateway.hello": { backend: "mock" | "codex"; writesEnabled: boolean; mode?: "chat" | "observe" | "build" };
   "client.registered": { worldSessionId: string };
   "command.accepted": { replyTo: string; taskId?: string };
   "task.status": { task: TaskSnapshot };
   "task.completed": { task: TaskSnapshot };
   "task.failed": { task: TaskSnapshot };
+  "task.approval_required": { task: TaskSnapshot };
   "chat.message": { text: string; taskId?: string };
   "command.error": { replyTo?: string; code: string; message: string };
   pong: Record<string, never>;
@@ -84,7 +88,7 @@ export function parseChatCommand(text: string): ChatCommand {
 
 export function renderServerMessage(message: ServerMessage): string | undefined {
   switch (message.type) {
-    case "gateway.hello": return `[Codex] 已连接（${message.payload.backend}，${message.payload.mode === "observe" ? "世界观察，只读" : "仅聊天"}）。`;
+    case "gateway.hello": return `[Codex] 已连接（${message.payload.backend}，${message.payload.mode === "build" ? "建造需逐任务确认" : message.payload.mode === "observe" ? "世界观察，只读" : "仅聊天"}）。`;
     case "chat.message": return `[Codex] ${message.payload.text}`;
     case "task.status": return `[Codex] ${message.payload.task.id} ${message.payload.task.status}`;
     case "task.failed": return `[Codex] 任务失败：${message.payload.task.error}`;

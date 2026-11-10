@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { describeBuild } from "@mccodex/shared";
 import type { TaskSnapshot } from "@mccodex/shared";
-import type { Backend } from "./backend.js";
+import type { Backend, BuildProposal } from "./backend.js";
 
 const terminal = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
-type Task = TaskSnapshot & { controller: AbortController };
+type Task = TaskSnapshot & { controller: AbortController; approval?: { accept: () => void }; executionStarted?: boolean };
 
 export class TaskManager {
   private tasks = new Map<string, Task>();
@@ -45,6 +46,20 @@ export class TaskManager {
   list(world: string) { return [...this.tasks.values()].filter(task => task.worldSessionId === world).map(task => this.snapshot(task)); }
   current(world: string) { return this.active?.worldSessionId === world ? this.snapshot(this.active) : undefined; }
 
+  approve(world: string, id: string) {
+    const task = this.tasks.get(id);
+    if (!task || task.worldSessionId !== world || task !== this.active || task.status !== "AWAITING_APPROVAL" || !task.approval) throw new Error("当前没有该任务的待审批计划");
+    if (Date.now() >= Date.parse(task.build!.expiresAt)) throw new Error("审批已过期，请重新提交任务");
+    task.approval.accept();
+    return this.snapshot(task);
+  }
+
+  reject(world: string, id: string) {
+    const task = this.tasks.get(id);
+    if (!task || task.worldSessionId !== world || task.status !== "AWAITING_APPROVAL") throw new Error("当前没有该任务的待审批计划");
+    return this.cancel(world, id);
+  }
+
   cancel(world: string, id?: string) {
     const task = id ? this.tasks.get(id) : this.active ?? [...this.tasks.values()].find(t => t.status === "QUEUED");
     if (!task || task.worldSessionId !== world) throw new Error("未找到可停止的任务");
@@ -77,23 +92,60 @@ export class TaskManager {
 
   private async execute(task: Task) {
     this.update(task, "RUNNING");
+    let proposal: BuildProposal | undefined;
     try {
-      const result = await this.backend.run(task.worldSessionId, task.text, task.controller.signal, text => {
+      const report = (text: string) => {
         if (!task.controller.signal.aborted && task.worldSessionId === this.world) this.report(this.snapshot(task), text);
-      });
+      };
+      let result = await this.backend.run(task.worldSessionId, task.text, task.controller.signal, report);
+      if (typeof result !== "string") proposal = result;
+      if (typeof result !== "string" && !task.controller.signal.aborted) {
+        const plan = result;
+        if (!this.backend.executeBuild) throw new Error("后端不支持执行建筑计划");
+        task.build = structuredClone(plan.summary);
+        await this.awaitApproval(task, plan);
+        task.controller.signal.throwIfAborted();
+        task.executionStarted = true;
+        result = await this.backend.executeBuild(task.worldSessionId, plan, task.controller.signal, report, stage => {
+          task.controller.signal.throwIfAborted();
+          this.update(task, stage);
+        });
+      }
       if (task.controller.signal.aborted) this.update(task, "CANCELLED");
       else {
+        if (typeof result !== "string") throw new Error("后端返回了无效执行结果");
         task.result = result;
         this.report(this.snapshot(task), result);
         this.update(task, "COMPLETED");
       }
     } catch (error) {
-      if (task.controller.signal.aborted) this.update(task, "CANCELLED");
+      if (task.controller.signal.aborted) {
+        if (task.executionStarted) {
+          task.error = error instanceof Error ? error.message : "已停止，已生效的方块不会自动回滚";
+          if (task.worldSessionId === this.world) this.report(this.snapshot(task), "建造已停止。" + task.error);
+        }
+        this.update(task, "CANCELLED");
+      }
       else {
         task.error = error instanceof Error ? error.message : "任务执行失败";
         this.update(task, "FAILED");
       }
+    } finally {
+      if (proposal) this.backend.discardBuild?.(proposal);
     }
+  }
+
+  private awaitApproval(task: Task, proposal: BuildProposal) {
+    return new Promise<void>((resolve, reject) => {
+      const abort = () => { cleanup(); reject(new Error("任务已取消")); };
+      const timer = setTimeout(() => { cleanup(); reject(new Error("建筑审批已过期，请重新提交任务")); }, Math.max(0, Date.parse(proposal.summary.expiresAt) - Date.now()));
+      const cleanup = () => { clearTimeout(timer); task.controller.signal.removeEventListener("abort", abort); task.approval = undefined; };
+      task.approval = { accept: () => { cleanup(); this.update(task, "BUILDING"); resolve(); } };
+      task.controller.signal.addEventListener("abort", abort, { once: true });
+      this.update(task, "AWAITING_APPROVAL");
+      this.report(this.snapshot(task), describeBuild(proposal.summary, task.id));
+      if (task.controller.signal.aborted) abort();
+    });
   }
 
   private update(task: Task, status: TaskSnapshot["status"]) {
@@ -102,7 +154,7 @@ export class TaskManager {
     this.publish(this.snapshot(task));
   }
 
-  private snapshot({ controller: _, ...task }: Task): TaskSnapshot { return { ...task }; }
+  private snapshot({ controller: _, approval: __, executionStarted: ___, ...task }: Task): TaskSnapshot { return structuredClone(task); }
 
   async close() {
     this.closed = true;

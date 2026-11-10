@@ -50,7 +50,7 @@ export async function observationConfig(config: GatewayConfig): Promise<NonNulla
   };
 }
 
-function jsonResult(result: McpServerToolCallResponse, tool: string): unknown {
+export function jsonResult(result: McpServerToolCallResponse, tool: string): unknown {
   if (result.isError) throw new Error(`Minecraft 读取失败（${tool}），请检查游戏和 MCPFabric 连接`);
   if (result.structuredContent !== undefined && result.structuredContent !== null) return result.structuredContent;
   for (const item of result.content) {

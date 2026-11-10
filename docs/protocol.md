@@ -32,7 +32,7 @@
 
 | 方向 | type | payload |
 |---|---|---|
-| 服务端 → 客户端 | `gateway.hello` | `backend`、可选 `mode:chat/observe`、`writesEnabled:false` |
+| 服务端 → 客户端 | `gateway.hello` | `backend`、可选 `mode:chat/observe/build`、`writesEnabled` |
 | 客户端 → 服务端 | `client.ready` | `worldSessionId` |
 | 服务端 → 客户端 | `client.registered` | `worldSessionId` |
 | 客户端 → 服务端 | `chat.command` | `worldSessionId`、`text`（含命令前缀） |
@@ -42,13 +42,14 @@
 | 服务端 → 客户端 | `task.status` | `task` 快照 |
 | 服务端 → 客户端 | `task.completed` | `task` 快照（含 `result`） |
 | 服务端 → 客户端 | `task.failed` | `task` 快照（含 `error`） |
+| 服务端 → 客户端 | `task.approval_required` | `task` 快照，含 `build`：世界、坐标、材料、数量、计划指纹与截止时间 |
 | 服务端 → 客户端 | `chat.message` | `text`、可选 `taskId` |
 | 客户端 → 服务端 | `ping` | `{}` |
 | 服务端 → 客户端 | `pong` | `{}` |
 
 使用 `client.ready` 并等待 `client.registered` 后才可提交任务。普通聊天不会送入此通道。服务端最终回复通过 `chat.message` 显示；`task.completed` 用于状态同步，不需再次显示整段回复。
 
-`@codex <文本>` 创建任务。`!codex status/queue/help` 为控制命令，`!codex stop [task-id]` 停止运行中或指定排队任务。`approve/reject` 仅识别语法，当前阶段返回未实现错误，不放行任何建造操作。
+`@codex <文本>` 创建任务。`!codex status/queue/help` 为控制命令，`!codex stop [task-id]` 停止运行中、待审批或指定排队任务。只有显式开启建造模式时，`!codex approve <task-id>` 才能确认当前会话里等待审批的计划；`reject` 取消计划。聊天和只读模式仍拒绝这些审批命令。等待审批时 `status` 会重新显示完整确认摘要。
 
 ## 任务与生命周期
 
@@ -57,6 +58,10 @@ QUEUED → RUNNING → COMPLETED
              ├→ FAILED
              └→ CANCELLING → CANCELLED
 QUEUED → CANCELLED
+
+# 建造模式（普通文字回复仍使用 RUNNING → COMPLETED）
+RUNNING → AWAITING_APPROVAL → BUILDING → VERIFYING → COMPLETED
+# 任一阶段可失败或取消；待审批会占据串行队列，直到确认、拒绝或过期。
 ```
 
 所有任务串行执行。取消运行中任务时必须等待后端实际结束；Codex 优先发送 `turn/interrupt`，超时则关闭子进程，然后才可启动后续任务。失败任务不会自动重试。队列/历史默认最多保留 100 项，新任务优先淘汰已结束历史；没有可淘汰项时拒绝提交。
@@ -69,6 +74,8 @@ Gateway 保留最近 1024 条会话内命令回执。相同 `worldSessionId + me
 
 Java 客户端断线后只重连和重新注册，不重发聊天指令。提交结果未知时提示查询状态。世界断开后任务会取消，历史也会清除，不能依赖 `status` 恢复已经丢失的结果。Gateway/Codex 进程崩溃后同样不自动重放原任务。
 
-当前有 mock 后端和真实 Codex 后端。真实后端默认聊天，可通过配置启用 Phase 2 只读观察；`gateway.hello` 和 `/health` 会注明 `mode`，`writesEnabled` 始终为 false。观察模式仍不接受客户端提供的位置或玩家状态，每轮从 MCPFabric 重新读取。服务端的可选 `mode` 字段不改变客户端 envelope；未升级的 Mod 仍能使用原协议收取文字回复，但欢迎消息可能显示为“仅聊天”。
+当前有 mock 后端和真实 Codex 后端。真实后端默认聊天，可显式启用只读观察或小型建筑。`writesEnabled=true` 只表示当前模式支持审批后的写入，不能当作单个任务已经获准。客户端不提供位置、建筑计划或写参数；这些由 Gateway 从本轮模型输出和 MCPFabric 读取结果校验。服务端新增模式和审批推送不改变客户端 envelope；老 Mod 仍可显示文字摘要，但欢迎消息不一定识别新模式。
 
-所有模式均无 Minecraft 建造能力。mock 回复始终带模拟标记，不能作为真实世界集成测试的证据。观察模式的 MCP 测试服务也只提供模拟世界数据，不能替代真实客户端、区域和截图验收。
+每份建筑审批绑定任务、客户端会话、当前 `sp:` 世界 ID、维度、目标区域完整状态与计划指纹。审批仅内存持有、单次使用，默认 120 秒内确认；拒绝、过期、退出、切换、重启或执行失败均不能复用。计划 JSON 文件仅供查看，修改文件不改变内存中的执行内容。执行只使用已校验计划的最终赋值；重叠操作不会引入未展示的中间写入。
+
+mock 和 MCP 测试服务只提供模拟数据，不能替代真实客户端、区域、截图和建造验收。写入本身不是跨多条 RPC 的原子事务；详见 [Phase 3 限制](PHASE3_REPORT.md)。

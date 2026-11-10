@@ -124,6 +124,58 @@ npm run smoke:observe -- --model-error
 
 两项可选检查会使用账户模型额度。前者要求模型实际调用区域和截图工具；后者注入截图读取失败，检查任务是否停止。二者仍只使用模拟世界。详见 [Phase 2 报告](PHASE2_REPORT.md)。
 
+## 小型建筑与审批（Phase 3）
+
+建造默认关闭，已有聊天与只读配置保持原有权限。复制 `config/gateway.build.example.json` 到 `.local/gateway.build.json`，编辑 `world.mcpServerPath` 后启动：
+
+```bash
+mkdir -p .local
+cp config/gateway.build.example.json .local/gateway.build.json
+GATEWAY_CONFIG=.local/gateway.build.json npm run dev
+```
+
+Windows 在 PowerShell 创建目录和复制配置后，设置 `$env:GATEWAY_CONFIG = '.local/gateway.build.json'`，执行 `npm run dev`。不要把示例里的占位入口路径直接用于正式运行。
+
+游戏端除了 Phase 2 的能力，还需 `enableWorldWrite=true`。**当前上游的 `get_screen` 被 `enablePlayerControl` 门限制；为了从 MCPFabric 核对 `sp:` 世界身份，建造模式还需要手工设置 `enablePlayerControl=true`。** Gateway 没有暴露移动、交互、导航或普通命令工具，也不会自动修改这些游戏配置。`enableCommands`、`enableUiControl`、`enableSupervisedControl` 保持关闭。仅支持一个 Minecraft 实例中的主世界单人集成世界。
+
+| `building` 配置 | 默认 | 作用 |
+|---|---|---|
+| `enabled` | `false` | 显式启用计划与审批后的执行 |
+| `maxBlocks` | `2048` | 目标格数、单操作体积及完整包围区域体积上限；配置最大 4096 |
+| `maxDistance` | `32` | 计划中每个目标坐标距离本轮玩家位置的各轴最大偏移 |
+| `allowOverwrite` | `false` | 默认拒绝改变非空气方块；开启后仍需显示覆盖数量并逐任务确认 |
+| `approvalTimeoutMs` | `120000` | 计划显示后可确认的时间；执行开始后不要求反复确认 |
+
+首版只支持 12 种静态整方块，材料清单在 `packages/shared/src/build-plan.ts`。不支持空气清除、方块状态、NBT、容器、液体、重力方块、红石、命令或玩家控制。计划最多 64 个填充操作；重叠部分按最终赋值去重，执行拆成互不重叠的行批次，最多 256 批。同一点使用 `set_block`，一行使用 `fill_blocks`，按高度从低到高执行。
+
+用户仍在游戏或终端输入普通 `@codex`。明确的建造请求生成结构化计划；纯文字聊天和观察任务仍可返回文字。模型只持有读取工具，规划回合结束后 Gateway 才读取完整目标区、计算实际改变格数和非空气覆盖数，并发布审批摘要：
+
+```text
+!codex status
+!codex approve task-...
+!codex reject task-...
+!codex stop [task-id]
+```
+
+`status` 可再次查看等待确认的摘要。完整操作清单保存在 `.local/plans/<fingerprint>.json`，供确认前查看；修改文件不会改变实际执行计划。审批只接受当前活跃任务和当前客户端会话，单次使用；拒绝、过期、退出、切换世界、Gateway 重启或执行失败都必须重新规划确认。待审批任务占用串行队列，后续任务等待。
+
+确认后由 Gateway 的固定执行器使用独立 Thread 调用写工具；这个 Thread 从不运行模型 Turn，模型不会拿到写工具。执行前复查 `sp:` 世界 ID、玩家维度、写入能力和整个包围区的完整状态；每批再检查上下文和将写位置，写后立即读回，出错停止后续批次，不重试。所有写参数来自内存中已校验的最终计划，不接受客户端另传坐标或方块参数。
+
+最终检查整个包围区：目标格达到计划状态，其余格保持审批时的状态；然后获取截图，交给原只读模型会话做文字视觉检查。截图无法辨认时必须如实说明，不能用读回成功冒充视觉成功。
+
+这些操作不是跨 RPC 的事务。检查与写入之间仍有间隙，其他程序、玩家操作或世界切换可同时发生；不支持多 Minecraft 实例，并不保证任意并发修改情况下零竞态。中断、超时或断线后可能已有部分方块生效，Gateway 不自动回滚，也不自动重放结果未知的批次。
+
+## 无游戏建筑验证
+
+```bash
+npm run smoke:build
+npm run smoke:build -- --model
+```
+
+默认使用 Gateway、WebSocket、JSON-RPC 模拟后端，检查显示审批、确认前零写入、确认后两批写入及四格读回、重复审批不重放写入。`--model` 使用真实 Codex app-server 与真实模型，连接具有临时 JSON 世界状态的独立 MCP 测试服务，额外验证结构化计划和截图检查通道，会使用账户模型额度。全部写入仅发生在临时模拟数据中，不连接 Minecraft。
+
+建造测试图片是 128×128 的棋盘占位图，不能作为建筑外观证据。详细结果和真实游戏清单见 [Phase 3 报告](PHASE3_REPORT.md)。
+
 ## Java 与 Mod
 
 完整 Mod 构建：

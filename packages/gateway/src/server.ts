@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { WebSocket, WebSocketServer } from "ws";
-import { clientMessageSchema, envelope, MAX_MESSAGE_BYTES, parseChatCommand } from "@mccodex/shared";
+import { clientMessageSchema, envelope, MAX_MESSAGE_BYTES, parseChatCommand, describeBuild } from "@mccodex/shared";
 import type { ClientMessage, ServerMessage, ServerPayloads, TaskSnapshot } from "@mccodex/shared";
 import type { Backend } from "./backend.js";
 import { authenticated } from "./config.js";
@@ -11,8 +11,8 @@ import { TaskManager } from "./task-manager.js";
 const commands = "@codex <任务>；!codex status；!codex queue；!codex stop [task-id]；!codex help。";
 
 export async function startGateway(config: GatewayConfig, token: string, backend: Backend) {
-  const mode = config.world.enabled ? "observe" : "chat";
-  const help = commands + (mode === "observe" ? "当前为只读世界观察，" : "当前仅支持聊天，") + "建造与 approve/reject 尚未开放。";
+  const mode = config.building.enabled ? "build" : config.world.enabled ? "observe" : "chat";
+  const help = commands + (mode === "build" ? "当前建造需逐任务确认：!codex approve/reject <task-id>。" : (mode === "observe" ? "当前为只读世界观察，" : "当前仅支持聊天，") + "建造与 approve/reject 尚未开放。");
   let socket: WebSocket | undefined;
   let world: string | undefined;
   let stopping = false;
@@ -31,7 +31,8 @@ export async function startGateway(config: GatewayConfig, token: string, backend
   };
   const manager = new TaskManager(backend, config.maxTasks, (task: TaskSnapshot) => {
     if (task.worldSessionId !== world) return;
-    if (task.status === "COMPLETED") publish("task.completed", { task });
+    if (task.status === "AWAITING_APPROVAL") publish("task.approval_required", { task });
+    else if (task.status === "COMPLETED") publish("task.completed", { task });
     else if (task.status === "FAILED") publish("task.failed", { task });
     else publish("task.status", { task });
   }, (task, text) => {
@@ -44,7 +45,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
     }
     if (req.method === "GET" && req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-      res.end(JSON.stringify({ ok: true, backend: backend.kind, mode, writesEnabled: false }));
+      res.end(JSON.stringify({ ok: true, backend: backend.kind, mode, writesEnabled: config.building.enabled }));
     } else res.writeHead(404).end();
   });
   const ws = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES, perMessageDeflate: false });
@@ -73,7 +74,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
     }, config.heartbeatMs);
     client.on("pong", () => { alive = true; });
     client.on("error", () => client.terminate());
-    sendTo(client, envelope("gateway.hello", { backend: backend.kind, mode, writesEnabled: false }));
+    sendTo(client, envelope("gateway.hello", { backend: backend.kind, mode, writesEnabled: config.building.enabled }));
 
     async function handle(message: ClientMessage) {
       if (client.readyState !== WebSocket.OPEN) return;
@@ -112,6 +113,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
           sendTo(client, ack);
           const type = task.status === "COMPLETED" ? "task.completed" : task.status === "FAILED" ? "task.failed" : "task.status";
           sendTo(client, envelope(type, { task }));
+          if (task.status === "AWAITING_APPROVAL" && task.build) sendTo(client, envelope("chat.message", { text: describeBuild(task.build, task.id) }));
         } else for (const response of cached.response) sendTo(client, response);
         return;
       }
@@ -132,14 +134,15 @@ export async function startGateway(config: GatewayConfig, token: string, backend
             case "help": reply("chat.message", { text: help }); break;
             case "status": {
               const active = manager.current(clientWorld);
-              reply("chat.message", { text: active ? `${active.id} ${active.status}` : "当前没有运行中的任务。" }); break;
+              reply("chat.message", { text: active?.status === "AWAITING_APPROVAL" && active.build ? describeBuild(active.build, active.id) : active ? `${active.id} ${active.status}` : "当前没有运行中的任务。" }); break;
             }
             case "queue": {
-              const queued = manager.list(clientWorld).filter(task => ["QUEUED", "RUNNING", "CANCELLING"].includes(task.status));
+              const queued = manager.list(clientWorld).filter(task => !["COMPLETED", "FAILED", "CANCELLED"].includes(task.status));
               reply("chat.message", { text: queued.length ? queued.map(task => `${task.id} ${task.status}`).join("\n") : "队列为空。" }); break;
             }
             case "stop": manager.cancel(clientWorld, command.taskId); break;
-            case "approve": case "reject": throw new Error("当前没有可审批的建筑计划；不会执行世界写入");
+            case "approve": if (!config.building.enabled) throw new Error("当前未开启建筑审批"); manager.approve(clientWorld, command.taskId); break;
+            case "reject": if (!config.building.enabled) throw new Error("当前未开启建筑审批"); manager.reject(clientWorld, command.taskId); break;
           }
           reply("command.accepted", { replyTo: message.messageId });
         }

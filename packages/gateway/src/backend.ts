@@ -1,8 +1,13 @@
 import { setTimeout as delay } from "node:timers/promises";
+import type { BuildSummary } from "@mccodex/shared";
+
+export interface BuildProposal { kind: "build-plan"; token: string; summary: BuildSummary }
 
 export interface Backend {
   readonly kind: "mock" | "codex";
-  run(worldSessionId: string, text: string, signal: AbortSignal, report: (text: string) => void): Promise<string>;
+  run(worldSessionId: string, text: string, signal: AbortSignal, report: (text: string) => void): Promise<string | BuildProposal>;
+  executeBuild?(worldSessionId: string, proposal: BuildProposal, signal: AbortSignal, report: (text: string) => void, stage: (stage: "BUILDING" | "VERIFYING") => void): Promise<string>;
+  discardBuild?(proposal: BuildProposal): void;
   reset(worldSessionId: string): Promise<void>;
   close(): Promise<void>;
 }
