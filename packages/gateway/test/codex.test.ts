@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +18,18 @@ async function setup(t: any, timeouts = {}) {
 }
 const signal = () => new AbortController().signal;
 
+test("starts npm-style .cmd shims on Windows", { skip: process.platform !== "win32", timeout: 10000 }, async t => {
+  const dataDir = await mkdtemp(path.join(os.tmpdir(), "codex-shim-test-"));
+  const shimDir = path.join(dataDir, "shim dir");
+  await mkdir(shimDir, { recursive: true });
+  const log = path.join(dataDir, "rpc.jsonl");
+  const shim = path.join(shimDir, "app-server.cmd");
+  await writeFile(shim, `@echo off\r\n"${process.execPath}" "${fixture}" "${log}"\r\n`, "utf8");
+  const backend = new CodexBackend(configSchema.parse({ dataDir, codex: { command: shim, args: [], requestTimeoutMs: 2000, turnTimeoutMs: 3000 } }));
+  t.after(async () => { await backend.close(); await rm(dataDir, { recursive: true, force: true }); });
+  assert.equal(await backend.run("world", "cmd-shim", signal(), () => {}), "fixture: cmd-shim");
+  assert.equal((await readFile(log, "utf8")).includes('"method":"thread/start"'), true);
+});
 test("adapter reuses its thread, handles early notifications, resets on world change", async t => {
   const { backend, messages } = await setup(t);
   assert.equal(await backend.run("world", "early", signal(), () => {}), "fixture: early");

@@ -113,14 +113,16 @@ Codex 升级后执行 `npm run codex:generate`，审查 `packages/gateway/src/co
 
 接口依据：[官方 Codex app-server 文档](https://learn.chatgpt.com/docs/app-server)，并以本机生成的 0.167.0 类型和实际运行结果为适配基线。
 
-## 游戏内手动验收（待有环境）
+## 游戏内手动验收（2026-11-10 已通过）
 
-- [ ] 普通聊天正常，`@codex`/`!codex` 不广播。
-- [ ] Gateway 不在时显示未连接；启动后有限重连成功。
-- [ ] mock 回复在本地 HUD 显示，并清楚标注模拟模式。
-- [ ] 真实 Codex 回复在 HUD 显示，多轮复用会话。
-- [ ] `status`、`queue`、`stop [task-id]` 正常。
-- [ ] 退出世界、切换服务器时旧任务中断，旧回复不进入新会话。
-- [ ] Windows 上可启动 Gateway、导出配置、构建和加载 Mod。
+验收环境：Windows 11，Minecraft 1.21.11，Fabric Loader 0.20.1，Fabric API 0.141.6+1.21.11，Codex CLI 0.167.0。
+
+- [x] 普通聊天正常，`@codex`/`!codex` 不广播。
+- [x] Gateway 不在时显示未连接；启动后有限重连成功。
+- [x] mock 回复在本地 HUD 显示，并清楚标注模拟模式。
+- [x] 真实 Codex 回复在 HUD 显示，多轮复用会话。
+- [x] `status`、`queue`、`stop [task-id]` 正常。
+- [x] 退出世界、切换服务器时旧任务中断，旧回复不进入新会话。
+- [x] Windows 上可启动 Gateway、导出配置、构建和加载 Mod。
 
 世界坐标、截图、玩家朝向、真实方块修改属于后续 Phase 2/3，不由此阶段的模拟测试替代。

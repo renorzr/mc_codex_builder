@@ -1,10 +1,12 @@
-# Phase 1：Linux 无游戏开发记录
+# Phase 1：开发与游戏内验收记录
 
-日期：2026-11-09。环境：Ubuntu Linux x86_64，Node.js 24.19.0，OpenJDK 21.0.12.1，Codex CLI 0.167.0，Gradle 9.8.2。
+开发日期：2026-11-09。环境：Ubuntu Linux x86_64，Node.js 24.19.0，OpenJDK 21.0.12.1，Codex CLI 0.167.0，Gradle 9.8.2。
+
+游戏内验收：2026-11-10。环境：Windows 11，Minecraft 1.21.11，Fabric Loader 0.20.1，Fabric API 0.141.6+1.21.11，Codex CLI 0.167.0。
 
 ## 结论
 
-已实现并验证不依赖本地 Minecraft 客户端的聊天链路，包括真实 Codex 多轮聊天、Java ↔ Node WebSocket 通信和完整 Fabric Mod 编译打包。**尚未进行游戏内或 Windows 实机验收，因此 Phase 1 的最终游戏聊天验收仍待完成。** 没有实现或模拟宣称世界观察、截图、建造和建筑审批已通过。
+已实现并验证不依赖本地 Minecraft 客户端的聊天链路，包括真实 Codex 多轮聊天、Java ↔ Node WebSocket 通信和完整 Fabric Mod 编译打包。**2026-11-10 已在 Windows 11 + Minecraft 1.21.11 + Fabric 环境中完成游戏内人工验收，Phase 1 最终聊天验收通过。** 没有实现或模拟宣称世界观察、截图、建造和建筑审批已通过。
 
 ## 已实现
 
@@ -20,14 +22,16 @@
 - 终端模拟客户端、配置示例、私有 token 文件、Companion 配置导出脚本。
 - Companion Mod 游戏无关的配置、JSON 协议、JDK WebSocket 客户端，最多连续尝试 5 次连接。
 - Mod 进入/退出世界生命周期、原有聊天拦截与本地 HUD 转发；消息回到 client thread 后再次检查会话代次，丢弃旧世界回调。
+- Windows npm .cmd shim 启动兼容、Codex 子进程树清理及对应回归测试。
 
 ## 实际检查
 
 | 检查 | 结果 | 证明范围 |
 |---|---|---|
-| `npm test` | 15 项通过 | 协议、认证、去重、队列、取消、会话、Codex 适配器故障与通知时序 |
+| `npm test` | 16 项通过 | 协议、认证、去重、队列、取消、会话、Codex 适配器故障与通知时序 |
 | `npm run smoke` | 两轮往返通过 | 真实 Node WebSocket 通道 + mock 后端 |
 | `npm run smoke -- --codex` | 两轮真实回复通过 | 真实 app-server 初始化、Thread、Turn、回复回传；没有 Minecraft 工具调用 |
+| Windows Codex 启动 | 两轮真实回复通过并正常退出 | npm .cmd shim、真实 Codex 通信和完整子进程树清理 |
 | `npm run test:java` | 6 项 JUnit 通过，`JAVA_GATEWAY_SMOKE_OK` | 游戏无关 Java 类 + 真实 Java ↔ Node 认证通信与中文消息 |
 | `./gradlew test build --no-daemon` | 构建通过，7 项 JUnit 通过 | 完整 Mod 源码、真实 Fabric 聊天事件 API、remap JAR |
 | `npm run companion:config` | 导出成功，字段匹配、POSIX `0600` | Gateway/Mod 配置格式与凭证文件权限 |
@@ -48,10 +52,22 @@ Java 的 6 项单测也是完整 Gradle 测试的子集，不能相加宣称 13 
 
 填充本机 Wrapper 缓存后，仓库自带 `./gradlew test build --no-daemon` 成功。没有更换项目依赖版本，没有关闭校验。此网络处理只影响本机缓存，其他机器仍使用正常 Wrapper 下载路径。
 
-## 尚需环境的工作
+## 游戏内人工验收
 
-- Minecraft 真实聊天框输入、HUD 显示、游戏内连接和切换服务器烟测。
-- Windows 上进程启动、路径、凭证文件 ACL 和 Mod 加载检查。
+2026-11-10 在上述 Windows/Fabric 环境中，由维护者在游戏内人工确认为通过：
+
+| 检查项 | 结果 |
+|---|---|
+| 普通聊天正常，`@codex`/`!codex` 不广播 | 通过 |
+| Gateway 不在时显示未连接，启动后有限重连成功 | 通过 |
+| mock 回复在本地聊天栏显示并标注模拟模式 | 通过 |
+| 真实 Codex 回复显示，多轮复用会话 | 通过 |
+| `status`、`queue`、`stop [task-id]` | 通过 |
+| 退出/切换世界时任务中断，旧回复不进入新会话 | 通过 |
+| Windows 启动 Gateway、导出配置、构建和加载 Mod | 通过 |
+
+## 后续阶段工作
+
 - Phase 2 的真实玩家位置、朝向、区域读取与截图。
 - Phase 3 的建筑计划、可执行审批边界、方块写入和建造后验证。
 

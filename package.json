@@ -17,6 +17,7 @@
     "test:java": "npm run build && node scripts/java-check.mjs"
   },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.20.0",

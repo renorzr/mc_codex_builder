@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import spawn from "cross-spawn";
+import { spawnSync } from "node:child_process";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
 
@@ -15,7 +16,7 @@ export class RpcClient extends EventEmitter {
 
   constructor(command: string, args: string[], cwd: string, private timeoutMs: number) {
     super();
-    this.child = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    this.child = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"], windowsHide: true }) as ChildProcessWithoutNullStreams;
     this.exitPromise = new Promise(resolve => this.child.once("close", () => resolve()));
     this.child.stdout.setEncoding("utf8");
     this.child.stdout.on("data", (data: string) => {
@@ -86,12 +87,23 @@ export class RpcClient extends EventEmitter {
     }
     this.pending.clear();
     this.emit("closed", error);
-    this.child.kill();
+    this.terminate();
   }
 
   async close() {
     this.fail(new Error("app-server closed"));
-    const killTimer = setTimeout(() => this.child.kill("SIGKILL"), 1500);
+    const killTimer = setTimeout(() => this.terminate(true), 1500);
     try { await this.exitPromise; } finally { clearTimeout(killTimer); }
+  }
+
+  private terminate(force = false) {
+    const pid = this.child.pid;
+    if (process.platform === "win32" && pid !== undefined) {
+      // npm exposes Codex through a .cmd shim, so the direct child is cmd.exe.
+      // Kill the full tree to ensure the underlying app-server also exits.
+      spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
+      return;
+    }
+    this.child.kill(force ? "SIGKILL" : undefined);
   }
 }

@@ -2,7 +2,7 @@
 
 Minecraft Java Edition AI 建造助手。最终目标是在 Windows 游戏聊天框输入指令，由 Codex 观察、规划并建造。
 
-**目前已实现 Phase 1 聊天链路，可在 Linux、无 Minecraft 的环境开发和测试。** 世界观察、建造、建筑审批尚未开放；游戏内交互仍需客户端烟测，不能视为完整 MVP。
+**Phase 1 聊天链路已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内人工验收。** 世界观察、建造、建筑审批尚未开放，不能视为完整 MVP。
 
 ## 无游戏启动
 
