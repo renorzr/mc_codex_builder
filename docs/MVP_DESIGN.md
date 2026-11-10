@@ -1,6 +1,6 @@
 # Minecraft Codex Builder — MVP 技术设计与开发任务书
 
-> 实现进度（2026-11-10）：[Phase 1](PHASE1_REPORT.md) 已完成 Windows 游戏内验收；[Phase 2](PHASE2_REPORT.md) 已实现可选的只读世界观察接入，真实游戏场景验收待完成。下文保留原始设计；当前协议以 [protocol.md](protocol.md) 为准，Companion 继续使用 `phase0/companion-mod` 路径。建造和建筑审批仍待后续实现。
+> 实现进度（2026-11-10）：[Phase 1](PHASE1_REPORT.md) 聊天链路和 [Phase 2](PHASE2_REPORT.md) 只读世界观察均已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内验收。下文保留原始设计；当前协议以 [protocol.md](protocol.md) 为准，Companion 继续使用 `phase0/companion-mod` 路径。建造和建筑审批仍待后续实现。
 
 ## 1. 项目目标
 
