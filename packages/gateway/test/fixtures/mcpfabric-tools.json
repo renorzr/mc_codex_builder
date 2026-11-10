@@ -1,0 +1,374 @@
+{
+  "sourceCommit": "a49a10641af2da813bb965e09114f7052c25ab35",
+  "tools": [
+    {
+      "name": "get_status",
+      "description": "Get the current state of the running game: mod & Minecraft version, which side this bridge runs on (client / dedicated_server), whether an integrated server is present, whether the player is in a world, current dimension, and the list of available capability groups. Call this first to learn what you can do right now.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_capabilities",
+      "description": "List every capability group and whether it is currently available on this side (e.g. control/interact/vision/nav are client-only; players/command admin need a server). Useful to decide which tools will work.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_block",
+      "description": "Read the block at an exact integer position: its block id, blockstate properties, whether it is air/fluid/solid, light levels, and hardness. Requires a loaded chunk.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "description": "X coordinate (east/west)."
+          },
+          "y": {
+            "type": "number",
+            "description": "Y coordinate (height)."
+          },
+          "z": {
+            "type": "number",
+            "description": "Z coordinate (north/south)."
+          },
+          "dimension": {
+            "description": "Dimension id, e.g. \"minecraft:overworld\", \"minecraft:the_nether\". Defaults to the current/overworld dimension.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_blocks_region",
+      "description": "Scan all blocks in the cuboid between two corners (inclusive) and return their ids. Regions above 16,777,216 positions (e.g. 256x256x256) are refused to protect the server: split larger areas. The answer is capped at maxBlocks (default 32768, truncated=true when hit); air is omitted unless includeAir is true. With includeState each block also has 'state', the id with its properties (facing, half, open, ...), to check that what was built faces the right way.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "X coordinate (east/west)."
+              },
+              "y": {
+                "type": "number",
+                "description": "Y coordinate (height)."
+              },
+              "z": {
+                "type": "number",
+                "description": "Z coordinate (north/south)."
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "additionalProperties": false,
+            "description": "One corner of the cuboid."
+          },
+          "to": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "X coordinate (east/west)."
+              },
+              "y": {
+                "type": "number",
+                "description": "Y coordinate (height)."
+              },
+              "z": {
+                "type": "number",
+                "description": "Z coordinate (north/south)."
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "additionalProperties": false,
+            "description": "Opposite corner of the cuboid."
+          },
+          "includeAir": {
+            "default": false,
+            "description": "Include air blocks in the result.",
+            "type": "boolean"
+          },
+          "includeState": {
+            "default": false,
+            "description": "Add each block's full state, e.g. \"minecraft:oak_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]\".",
+            "type": "boolean"
+          },
+          "maxBlocks": {
+            "description": "Override the per-call block cap.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200000
+          },
+          "dimension": {
+            "description": "Dimension id, e.g. \"minecraft:overworld\", \"minecraft:the_nether\". Defaults to the current/overworld dimension.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "includeAir",
+          "includeState"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "find_blocks",
+      "description": "Search a spherical radius around a center point for blocks matching any of the given ids (e.g. minecraft:diamond_ore). Searches outward from the center, so the nearest blocks are always covered; a scan budget of 250,000 positions may stop it early (truncated=true, searchedRadius tells how far it got). Returns matches sorted by distance. Only searches loaded chunks.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "center": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "X coordinate (east/west)."
+              },
+              "y": {
+                "type": "number",
+                "description": "Y coordinate (height)."
+              },
+              "z": {
+                "type": "number",
+                "description": "Z coordinate (north/south)."
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "additionalProperties": false,
+            "description": "Center of the search sphere."
+          },
+          "radius": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 128,
+            "description": "Search radius in blocks."
+          },
+          "blockIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Block ids to match, e.g. [\"minecraft:diamond_ore\",\"minecraft:ancient_debris\"]."
+          },
+          "maxResults": {
+            "default": 64,
+            "description": "Maximum matches to return.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1024
+          },
+          "dimension": {
+            "description": "Dimension id, e.g. \"minecraft:overworld\", \"minecraft:the_nether\". Defaults to the current/overworld dimension.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "center",
+          "radius",
+          "blockIds",
+          "maxResults"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_block",
+      "description": "Place/replace the block at an exact position with the given block id (optionally with blockstate properties as a string like 'minecraft:oak_log[axis=y]'). Properties left out take their defaults. 'state' is the block read back afterwards, with all its properties. Requires a server (integrated client or dedicated).",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "description": "X coordinate (east/west)."
+          },
+          "y": {
+            "type": "number",
+            "description": "Y coordinate (height)."
+          },
+          "z": {
+            "type": "number",
+            "description": "Z coordinate (north/south)."
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Block id, optionally with state, e.g. \"minecraft:stone\" or \"minecraft:oak_stairs[facing=east]\"."
+          },
+          "dimension": {
+            "description": "Dimension id, e.g. \"minecraft:overworld\", \"minecraft:the_nether\". Defaults to the current/overworld dimension.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z",
+          "blockId"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_self",
+      "description": "Client-only. Full state of YOUR player: position, yaw/pitch, motion, health, food, saturation, air, XP, game mode, on-ground, in-fluid, selected hotbar slot, dimension.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_inventory",
+      "description": "Client-only. Full inventory: main slots, hotbar, armor, offhand, and the selected slot. Each item reports id, count and durability.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "screenshot",
+      "description": "Client-only. Capture the current game framebuffer as a PNG image (at the game's current resolution) so a vision-capable model can literally see what the player sees. With marks: true, mobs and players in view get numbered labels (#1, #2, ...) on the image and a legend maps each number to its entity uuid, type and distance, so you can act on \"#2\" with attack_entity or use_entity.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "marks": {
+            "description": "Label the mobs and players in view with numbers and list them.",
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "describe_scene",
+      "description": "Client-only. Produce a structured, text description of what is visible: the block/entity directly under the crosshair, a grid of raycasts across the field of view, and nearby visible entities. A cheap alternative to a screenshot for non-vision models.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "maxDistance": {
+            "default": 48,
+            "type": "number",
+            "minimum": 1,
+            "maximum": 128
+          },
+          "rayColumns": {
+            "default": 9,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 33
+          },
+          "rayRows": {
+            "default": 5,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 33
+          }
+        },
+        "required": [
+          "maxDistance",
+          "rayColumns",
+          "rayRows"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

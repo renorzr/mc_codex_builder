@@ -37,7 +37,8 @@ public final class GatewayProtocol {
 	public static String render(JsonObject message) {
 		JsonObject payload = message.getAsJsonObject("payload");
 		return switch (message.get("type").getAsString()) {
-			case "gateway.hello" -> "[Codex] Gateway 已连接（" + payload.get("backend").getAsString() + "，仅聊天）。";
+			case "gateway.hello" -> "[Codex] Gateway 已连接（" + payload.get("backend").getAsString() + "，"
+					+ (payload.has("mode") && payload.get("mode").getAsString().equals("observe") ? "世界观察，只读" : "仅聊天") + "）。";
 			case "chat.message" -> "[Codex] " + payload.get("text").getAsString();
 			case "task.status" -> "[Codex] " + payload.getAsJsonObject("task").get("id").getAsString()
 					+ " " + payload.getAsJsonObject("task").get("status").getAsString();

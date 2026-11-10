@@ -32,7 +32,7 @@
 
 | 方向 | type | payload |
 |---|---|---|
-| 服务端 → 客户端 | `gateway.hello` | `backend`、`writesEnabled:false` |
+| 服务端 → 客户端 | `gateway.hello` | `backend`、可选 `mode:chat/observe`、`writesEnabled:false` |
 | 客户端 → 服务端 | `client.ready` | `worldSessionId` |
 | 服务端 → 客户端 | `client.registered` | `worldSessionId` |
 | 客户端 → 服务端 | `chat.command` | `worldSessionId`、`text`（含命令前缀） |
@@ -69,4 +69,6 @@ Gateway 保留最近 1024 条会话内命令回执。相同 `worldSessionId + me
 
 Java 客户端断线后只重连和重新注册，不重发聊天指令。提交结果未知时提示查询状态。世界断开后任务会取消，历史也会清除，不能依赖 `status` 恢复已经丢失的结果。Gateway/Codex 进程崩溃后同样不自动重放原任务。
 
-当前有 mock 后端和真实 Codex 聊天后端，二者均无 Minecraft 建造能力。mock 回复始终带模拟标记，不能作为真实世界集成测试的证据。
+当前有 mock 后端和真实 Codex 后端。真实后端默认聊天，可通过配置启用 Phase 2 只读观察；`gateway.hello` 和 `/health` 会注明 `mode`，`writesEnabled` 始终为 false。观察模式仍不接受客户端提供的位置或玩家状态，每轮从 MCPFabric 重新读取。服务端的可选 `mode` 字段不改变客户端 envelope；未升级的 Mod 仍能使用原协议收取文字回复，但欢迎消息可能显示为“仅聊天”。
+
+所有模式均无 Minecraft 建造能力。mock 回复始终带模拟标记，不能作为真实世界集成测试的证据。观察模式的 MCP 测试服务也只提供模拟世界数据，不能替代真实客户端、区域和截图验收。

@@ -9,7 +9,7 @@ try {
   const token = await loadToken(config.dataDir);
   const backend = config.backend === "codex" ? new CodexBackend(config) : new MockBackend();
   const gateway = await startGateway(config, token, backend);
-  console.log(JSON.stringify({ ready: true, url: gateway.url, backend: backend.kind, writesEnabled: false,
+  console.log(JSON.stringify({ ready: true, url: gateway.url, backend: backend.kind, mode: config.world.enabled ? "observe" : "chat", writesEnabled: false,
     tokenSource: process.env.GATEWAY_TOKEN ? "GATEWAY_TOKEN" : path.resolve(config.dataDir, "gateway-token") }));
   let closing = false;
   const close = () => {

@@ -155,6 +155,11 @@ platformOs: string, };
 export type LegacyAppPathString = string;
 
 /**
+ * Presentation metadata advertised by an initialized MCP server.
+ */
+export type McpServerInfo = { name: string, title: string | null, version: string, description: string | null, icons: Array<JsonValue> | null, websiteUrl: string | null, };
+
+/**
  * Classifies assistant text as commentary, a partial answer, or a terminal answer.
  *
  * Providers do not emit this consistently, so callers must treat `None` as
@@ -189,6 +194,16 @@ export type ReasoningEffort = string;
 export type ReasoningSummary = "auto" | "concise" | "detailed" | "none";
 
 /**
+ * A known resource that the server is capable of reading.
+ */
+export type Resource = { annotations?: JsonValue, description?: string, mimeType?: string, name: string, size?: number, title?: string, uri: string, icons?: Array<JsonValue>, _meta?: JsonValue, };
+
+/**
+ * A template description for resources available on the server.
+ */
+export type ResourceTemplate = { annotations?: JsonValue, uriTemplate: string, name: string, title?: string, description?: string, mimeType?: string, };
+
+/**
  * User's decision in response to an ExecApprovalRequest.
  */
 export type ReviewDecision = "approved" | { "approved_execpolicy_amendment": { proposed_execpolicy_amendment: LegacyExecPolicyAmendment, } } | "approved_for_session" | "approved_mcp_policy_amendment" | { "network_policy_amendment": { network_policy_amendment: LegacyNetworkPolicyAmendment, } } | { "denied": { rejection: string, } } | "timed_out" | "abort";
@@ -213,6 +228,11 @@ export type SubAgentSource = "review" | "compact" | { "thread_spawn": { parent_t
  * Codex-generated thread IDs are UUIDv7, and some use cases rely on that.
  */
 export type ThreadId = string;
+
+/**
+ * Definition for a tool the client can call.
+ */
+export type Tool = { name: string, title?: string, description?: string, inputSchema: JsonValue, outputSchema?: JsonValue, annotations?: JsonValue, icons?: Array<JsonValue>, _meta?: JsonValue, };
 
 export type AdditionalFileSystemPermissions = {
 /**
@@ -375,12 +395,42 @@ export type ItemCompletedNotification = { item: ThreadItem, threadId: string, tu
  */
 completedAtMs: number, };
 
+export type ListMcpServerStatusParams = {
+/**
+ * Opaque pagination cursor returned by a previous call.
+ */
+cursor?: string | null,
+/**
+ * Optional page size; defaults to a server-defined value.
+ */
+limit?: number | null,
+/**
+ * Controls how much MCP inventory data to fetch for each server.
+ * Defaults to `Full` when omitted.
+ */
+detail?: McpServerStatusDetail | null, threadId?: string | null,
+/**
+ * Limit discovery to one server. With a thread ID, reuse that thread's MCP connection.
+ */
+serverName?: string | null, };
+
+export type ListMcpServerStatusResponse = { data: Array<McpServerStatus>,
+/**
+ * Opaque cursor to pass to the next call to continue after the last item.
+ * If None, there are no more items to return.
+ */
+nextCursor: string | null, };
+
 export type McpAppDisplayMode = "inline" | "fullscreen";
 
 /**
  * UI resource and display preference for model invocations, captured from the tool descriptor.
  */
 export type McpAppUi = { resourceUri: string, preferredModelDisplayMode: McpAppDisplayMode, };
+
+export type McpAuthStatus = "unknown" | "unsupported" | "notLoggedIn" | "bearerToken" | "oAuth";
+
+export type McpServerConnectionStatus = "notStarted" | "starting" | "connected" | "authenticationRequired" | "failed" | "cancelled" | "disabled";
 
 export type McpServerElicitationAction = "accept" | "decline" | "cancel";
 
@@ -395,6 +445,36 @@ content: JsonValue | null,
  * Optional client metadata for form-mode action handling.
  */
 _meta: JsonValue | null, };
+
+export type McpServerStatus = { name: string,
+/**
+ * Current thread-runtime connection state; null when unavailable or the configuration changed.
+ */
+runtimeStatus: McpServerConnectionStatus | null, pluginId: string | null,
+/**
+ * HTTP origin of the effective configured endpoint, including plugin servers.
+ * Excludes credentials, path, query, and fragment; null for non-HTTP transports.
+ */
+httpOrigin: string | null, serverInfo: McpServerInfo | null,
+/**
+ * Capabilities advertised by the initialized MCP server; null when unavailable.
+ */
+serverCapabilities: JsonValue | null,
+/**
+ * Opaque `_meta` from the first page of the corresponding MCP tool catalog. Null when unavailable.
+ */
+toolListMeta: JsonValue | null, tools: { [key in string]?: Tool },
+/**
+ * Tool discovery failed and no catalog was returned.
+ * Null when a catalog is returned, including cached or empty catalogs.
+ */
+toolsError: string | null, resources: Array<Resource>, resourceTemplates: Array<ResourceTemplate>, authStatus: McpAuthStatus, };
+
+export type McpServerStatusDetail = "full" | "toolsAndAuthOnly";
+
+export type McpServerToolCallParams = { threadId: string, server: string, tool: string, arguments?: JsonValue, _meta?: JsonValue, };
+
+export type McpServerToolCallResponse = { content: Array<JsonValue>, structuredContent?: JsonValue, isError?: boolean, _meta?: JsonValue, };
 
 export type McpToolCallAppContext = { connectorId: string, linkId: string | null, resourceUri: string | null, appName: string | null, actionName: string | null, };
 

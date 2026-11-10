@@ -10,13 +10,22 @@ export const configSchema = z.object({
   dataDir: z.string().min(1).default(".local"),
   maxTasks: z.number().int().min(1).max(10000).default(100),
   heartbeatMs: z.number().int().min(100).max(60000).default(15000),
+  world: z.object({
+    enabled: z.boolean().default(false),
+    mcpServerPath: z.string().min(1).optional(),
+    startupTimeoutSec: z.number().int().min(1).max(120).default(30),
+    toolTimeoutSec: z.number().int().min(1).max(120).default(20),
+  }).strict().default({ enabled: false, startupTimeoutSec: 30, toolTimeoutSec: 20 }),
   codex: z.object({
     command: z.string().min(1).default("codex"),
     args: z.array(z.string()).default(["app-server", "--listen", "stdio://"]),
     requestTimeoutMs: z.number().int().min(100).max(120000).default(30000),
     turnTimeoutMs: z.number().int().min(100).max(1800000).default(180000),
   }).strict().default({ command: "codex", args: ["app-server", "--listen", "stdio://"], requestTimeoutMs: 30000, turnTimeoutMs: 180000 }),
-}).strict();
+}).strict().superRefine((config, context) => {
+  if (config.world.enabled && config.backend !== "codex") context.addIssue({ code: "custom", path: ["backend"], message: "世界观察需要 codex 后端" });
+  if (config.world.enabled && !config.world.mcpServerPath) context.addIssue({ code: "custom", path: ["world", "mcpServerPath"], message: "世界观察需要 MCPFabric MCP Server 的本地入口路径" });
+});
 export type GatewayConfig = z.infer<typeof configSchema>;
 
 export async function loadConfig(env = process.env): Promise<GatewayConfig> {

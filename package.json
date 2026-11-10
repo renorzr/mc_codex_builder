@@ -12,6 +12,7 @@
     "dev": "npm run build && node packages/gateway/dist/index.js",
     "chat": "node packages/gateway/dist/terminal.js",
     "smoke": "npm run build && node packages/gateway/dist/smoke.js",
+    "smoke:observe": "npm run build && node scripts/observation-smoke.mjs",
     "codex:generate": "node scripts/generate-codex-protocol.mjs",
     "companion:config": "npm run build && node scripts/companion-config.mjs",
     "test:java": "npm run build && node scripts/java-check.mjs"

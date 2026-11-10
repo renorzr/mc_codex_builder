@@ -61,6 +61,69 @@ GATEWAY_CONFIG=config/gateway.example.json npm run dev
 
 健康检查为 `GET /health`，必须携带 `Authorization: Bearer <token>`。只表示 Gateway 存活与后端模式；Codex 懒启动，不能由健康检查推断已完成 Codex 认证或世界连接。
 
+## 只读世界观察（Phase 2）
+
+`world.enabled` 默认是 false，维持已验收的 Phase 1 聊天行为。只有 `backend: "codex"` 并显式配置 MCP Server 入口文件时，才能开启观察。Gateway 不写用户的全局 Codex 配置，也不读取、复制或保存 MCPFabric Bridge token。
+
+使用已验证的 MCPFabric 源码 commit `a49a10641af2da813bb965e09114f7052c25ab35`，其工具过滤器支持 `readonly`。只有版本号 `0.9.1` 不足以证明包含该 commit 的接口，旧的服务端包可能不支持所需过滤器。构建示例：
+
+```bash
+git clone https://github.com/denfry/mcpfabric.git .local/mcpfabric
+git -C .local/mcpfabric checkout a49a10641af2da813bb965e09114f7052c25ab35
+npm ci --prefix .local/mcpfabric/mcp-server --ignore-scripts
+npm run build --prefix .local/mcpfabric/mcp-server
+```
+
+这些步骤只构建 Node MCP Server；游戏中还需安装相匹配的 MCPFabric 客户端 Mod。默认发现文件 `~/.mcpfabric/bridge.json` 由 MCP Server 自行读取。当前限定单一游戏实例和单人集成世界，不支持仅启动 dedicated server 或从普通多人服务器读取服务端区域。
+
+复制观察配置到 `.local/` 后，编辑 `world.mcpServerPath`，填写构建好的 `mcp-server/dist/index.js` 的绝对路径：
+
+```bash
+mkdir -p .local
+cp config/gateway.observe.example.json .local/gateway.observe.json
+GATEWAY_CONFIG=.local/gateway.observe.json npm run dev
+```
+
+PowerShell：
+
+```powershell
+New-Item -ItemType Directory -Force .local | Out-Null
+Copy-Item config/gateway.observe.example.json .local/gateway.observe.json
+$env:GATEWAY_CONFIG = '.local/gateway.observe.json'
+npm run dev
+```
+
+Windows 的 JSON 路径可以写成 `C:/path/to/mcpfabric/mcp-server/dist/index.js`。Gateway 使用当前 Node 可执行文件启动 MCP Server，不依赖 npm 的 `.cmd` shim。首次启动前如果 `.local/` 尚不存在，请先创建目录。
+
+MCPFabric 游戏配置建议启用 `enableVision=true`，关闭 `enableWorldWrite`、`enableCommands`、`enablePlayerControl`、`enableUiControl`、`enableSupervisedControl`。不要把 Bridge token 写入 Gateway JSON。进入单人世界后，通过 Mod 或终端提交：
+
+```text
+@codex 分析我周围的场景，告诉我坐标、朝向和附近有哪些方块，并检查截图。
+```
+
+预检要求当前 MCP 连接正常、八个工具齐全且只读、客户端已连接集成服务端、AI 未暂停，并有 `world_read`、`player_local`、`vision` 能力。每次任务重新读取 `get_status` 与 `get_self`，校验坐标、朝向、维度和游戏模式，再交给模型使用。任一步失败，不启动该轮推理，不用历史数据补全。
+
+只开放：`get_status`、`list_capabilities`、`get_self`、`get_block`、`get_blocks_region`、`find_blocks`、`screenshot`、`describe_scene`。MCP Server 通过 `world,player,vision,readonly` 过滤工具，Codex 再以 `enabled_tools` 限制这八项。其他全局 MCP、shell、插件等入口保持关闭。`mccodex_observe` 是保留的 MCP 名称，全局配置出现同名服务时会拒绝启动观察模式。
+
+默认模型沿用用户配置，需要支持图像工具结果。区域与截图通过真实 MCP 工具交给模型；截图不经 64 KiB 的 Companion 消息通道传输。app-server 单条 JSON-RPC 上限为 16 MiB，超过时终止连接并让任务失败。此阶段通过指引要求模型从半径不超过 8 格、返回不超过 4096 块的小区域开始；实际 RPC 扫描边界仍由上游实现约束，不是独立的建造权限机制。
+
+工具错误或超出允许工具范围时，Gateway 停止该轮观察。退出/切换世界、断开 Gateway 或 `stop` 命令沿用已有取消流程。`worldSessionId` 仍只是客户端 nonce，不是世界写权限凭据。建造、审批、移动和命令执行未开放。
+
+## 无游戏观察验证
+
+```bash
+npm run smoke:observe
+```
+
+此命令使用真实 Codex app-server 和独立的 MCP stdio 测试服务，验证本轮玩家状态、区域 JSON、图片内容与白名单限制。测试服务使用固定上游工具 Schema、模拟坐标和 1×1 占位图片。不会连接 Minecraft，也不发起模型推理。
+
+```bash
+npm run smoke:observe -- --model
+npm run smoke:observe -- --model-error
+```
+
+两项可选检查会使用账户模型额度。前者要求模型实际调用区域和截图工具；后者注入截图读取失败，检查任务是否停止。二者仍只使用模拟世界。详见 [Phase 2 报告](PHASE2_REPORT.md)。
+
 ## Java 与 Mod
 
 完整 Mod 构建：
@@ -125,4 +188,12 @@ Codex 升级后执行 `npm run codex:generate`，审查 `packages/gateway/src/co
 - [x] 退出世界、切换服务器时旧任务中断，旧回复不进入新会话。
 - [x] Windows 上可启动 Gateway、导出配置、构建和加载 Mod。
 
-世界坐标、截图、玩家朝向、真实方块修改属于后续 Phase 2/3，不由此阶段的模拟测试替代。
+以上是已有 Phase 1 的验收记录。Phase 2 新的只读观察模式尚需在真实游戏中检查：
+
+- [ ] 欢迎消息显示“世界观察，只读”，MCP 预检通过。
+- [ ] 报告的坐标、朝向、维度和游戏模式与当前玩家一致，移动后新任务重新读取。
+- [ ] 实际区域方块和截图能传给模型，截断或无法确定的结果被明确说明。
+- [ ] 游戏退出、视觉能力关闭、chunk 未加载等情况明确失败；不会继续读取或宣称成功。
+- [ ] 建造、命令、移动请求均不会执行；`approve/reject` 不放行写入。
+
+这些项目不能由模拟测试或 Phase 1 的历史验收替代。

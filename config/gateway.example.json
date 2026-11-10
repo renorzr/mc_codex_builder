@@ -5,6 +5,9 @@
   "dataDir": ".local",
   "maxTasks": 100,
   "heartbeatMs": 15000,
+  "world": {
+    "enabled": false
+  },
   "codex": {
     "command": "codex",
     "args": ["app-server", "--listen", "stdio://"],

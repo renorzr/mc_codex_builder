@@ -1,12 +1,18 @@
-import { execFileSync } from "node:child_process";
+import spawn from "cross-spawn";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const codex = process.env.CODEX_COMMAND ?? "codex";
+function run(args, options) {
+  const result = spawn.sync(codex, args, { windowsHide: true, ...options });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`Codex protocol generation exited with status ${result.status}`);
+  return result.stdout;
+}
 const root = path.resolve(".phase0/codex-app-server/typescript");
 await mkdir(root, { recursive: true });
-execFileSync(codex, ["app-server", "generate-ts", "--out", root], { stdio: "inherit" });
-const version = execFileSync(codex, ["--version"], { encoding: "utf8" }).trim();
+run(["app-server", "generate-ts", "--out", root], { stdio: "inherit" });
+const version = run(["--version"], { encoding: "utf8" }).trim();
 const visited = new Map();
 async function visit(file) {
   if (visited.has(file)) return;
@@ -18,6 +24,9 @@ async function visit(file) {
 }
 for (const file of ["InitializeParams", "InitializeResponse", "ExecCommandApprovalResponse", "ApplyPatchApprovalResponse", "v2/ConfigReadParams", "v2/ConfigReadResponse", "v2/ThreadStartParams", "v2/ThreadStartResponse", "v2/ThreadResumeParams", "v2/ThreadResumeResponse", "v2/TurnStartParams", "v2/TurnStartResponse", "v2/TurnInterruptParams", "v2/TurnInterruptResponse", "v2/AgentMessageDeltaNotification", "v2/TurnCompletedNotification", "v2/ItemCompletedNotification", "v2/CommandExecutionRequestApprovalResponse", "v2/FileChangeRequestApprovalResponse", "v2/PermissionsRequestApprovalResponse", "v2/McpServerElicitationRequestResponse", "v2/ToolRequestUserInputResponse"]) {
   await visit(path.join(root, file + ".ts"));
+}
+for (const file of ["ListMcpServerStatusParams", "ListMcpServerStatusResponse", "McpServerToolCallParams", "McpServerToolCallResponse"]) {
+  await visit(path.join(root, "v2", file + ".ts"));
 }
 const out = "packages/gateway/src/codex/generated/protocol.ts";
 await mkdir(path.dirname(out), { recursive: true });

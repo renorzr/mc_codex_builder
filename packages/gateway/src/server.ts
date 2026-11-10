@@ -8,9 +8,11 @@ import { authenticated } from "./config.js";
 import type { GatewayConfig } from "./config.js";
 import { TaskManager } from "./task-manager.js";
 
-const help = "@codex <任务>；!codex status；!codex queue；!codex stop [task-id]；!codex help。当前仅支持聊天，建造与 approve/reject 尚未开放。";
+const commands = "@codex <任务>；!codex status；!codex queue；!codex stop [task-id]；!codex help。";
 
 export async function startGateway(config: GatewayConfig, token: string, backend: Backend) {
+  const mode = config.world.enabled ? "observe" : "chat";
+  const help = commands + (mode === "observe" ? "当前为只读世界观察，" : "当前仅支持聊天，") + "建造与 approve/reject 尚未开放。";
   let socket: WebSocket | undefined;
   let world: string | undefined;
   let stopping = false;
@@ -42,7 +44,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
     }
     if (req.method === "GET" && req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-      res.end(JSON.stringify({ ok: true, backend: backend.kind, writesEnabled: false }));
+      res.end(JSON.stringify({ ok: true, backend: backend.kind, mode, writesEnabled: false }));
     } else res.writeHead(404).end();
   });
   const ws = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES, perMessageDeflate: false });
@@ -71,7 +73,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
     }, config.heartbeatMs);
     client.on("pong", () => { alive = true; });
     client.on("error", () => client.terminate());
-    sendTo(client, envelope("gateway.hello", { backend: backend.kind, writesEnabled: false }));
+    sendTo(client, envelope("gateway.hello", { backend: backend.kind, mode, writesEnabled: false }));
 
     async function handle(message: ClientMessage) {
       if (client.readyState !== WebSocket.OPEN) return;
@@ -137,7 +139,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
               reply("chat.message", { text: queued.length ? queued.map(task => `${task.id} ${task.status}`).join("\n") : "队列为空。" }); break;
             }
             case "stop": manager.cancel(clientWorld, command.taskId); break;
-            case "approve": case "reject": throw new Error("当前仅支持聊天，没有可审批的建筑计划；不会执行世界写入");
+            case "approve": case "reject": throw new Error("当前没有可审批的建筑计划；不会执行世界写入");
           }
           reply("command.accepted", { replyTo: message.messageId });
         }

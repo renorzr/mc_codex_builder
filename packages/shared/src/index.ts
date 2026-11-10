@@ -31,7 +31,7 @@ export interface TaskSnapshot {
   error?: string;
 }
 export interface ServerPayloads {
-  "gateway.hello": { backend: "mock" | "codex"; writesEnabled: false };
+  "gateway.hello": { backend: "mock" | "codex"; writesEnabled: false; mode?: "chat" | "observe" };
   "client.registered": { worldSessionId: string };
   "command.accepted": { replyTo: string; taskId?: string };
   "task.status": { task: TaskSnapshot };
@@ -84,7 +84,7 @@ export function parseChatCommand(text: string): ChatCommand {
 
 export function renderServerMessage(message: ServerMessage): string | undefined {
   switch (message.type) {
-    case "gateway.hello": return `[Codex] 已连接（${message.payload.backend}，仅聊天）。`;
+    case "gateway.hello": return `[Codex] 已连接（${message.payload.backend}，${message.payload.mode === "observe" ? "世界观察，只读" : "仅聊天"}）。`;
     case "chat.message": return `[Codex] ${message.payload.text}`;
     case "task.status": return `[Codex] ${message.payload.task.id} ${message.payload.task.status}`;
     case "task.failed": return `[Codex] 任务失败：${message.payload.task.error}`;

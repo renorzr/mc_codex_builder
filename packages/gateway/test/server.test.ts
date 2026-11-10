@@ -13,7 +13,7 @@ test("requires bearer auth, rejects browser origins, and reserves one companion"
   t.after(() => gateway.close());
   assert.equal((await fetch(`http://127.0.0.1:${gateway.port}/health`)).status, 401);
   const health = await fetch(`http://127.0.0.1:${gateway.port}/health`, { headers: { Authorization: "Bearer " + token } });
-  assert.deepEqual(await health.json(), { ok: true, backend: "mock", writesEnabled: false });
+  assert.deepEqual(await health.json(), { ok: true, backend: "mock", mode: "chat", writesEnabled: false });
   await rejected(gateway.url, "wrong-token", 401);
   await rejected(gateway.url, token, 403, { Origin: "http://evil.example" });
   const client = await connect(gateway.url, token);

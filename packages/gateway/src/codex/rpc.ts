@@ -21,7 +21,7 @@ export class RpcClient extends EventEmitter {
     this.child.stdout.setEncoding("utf8");
     this.child.stdout.on("data", (data: string) => {
       this.buffer += data;
-      if (Buffer.byteLength(this.buffer) > 4 * 1024 * 1024) return this.fail(new Error("app-server message exceeded 4 MiB"));
+      if (Buffer.byteLength(this.buffer) > 16 * 1024 * 1024) return this.fail(new Error("app-server message exceeded 16 MiB"));
       let end: number;
       while ((end = this.buffer.indexOf("\n")) !== -1) {
         const line = this.buffer.slice(0, end).trim();
