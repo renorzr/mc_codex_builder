@@ -101,7 +101,7 @@ export class McpFabricBuilder {
     const overwrittenBlocks = changed.filter(cell => !["minecraft:air", "minecraft:cave_air", "minecraft:void_air"].includes(before.get(positionKey(cell))!.id)).length;
     if (overwrittenBlocks && !this.config.building.allowOverwrite) throw new Error("计划会覆盖现有非空气方块，请选择空地上方或重新规划");
     const rows = groupBuildRows(changed);
-    const expiresAt = new Date(Date.now() + this.config.building.approvalTimeoutMs).toISOString();
+    const expiresAt = this.config.building.approvalTimeoutMs > 0 ? new Date(Date.now() + this.config.building.approvalTimeoutMs).toISOString() : undefined;
     const fingerprint = buildFingerprint({ worldSessionId, worldId, plan: compiled.plan, before: [...before], expiresAt });
     const dir = path.resolve(this.config.dataDir, "plans");
     await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -123,7 +123,7 @@ export class McpFabricBuilder {
     const entry = this.entries.get(proposal.token);
     if (!entry || entry.worldSessionId !== worldSessionId || entry.fingerprint !== proposal.summary.fingerprint) throw new Error("建筑审批无效或已被使用");
     this.entries.delete(proposal.token); // Single use, including failures and uncertain outcomes.
-    if (Date.now() >= Date.parse(entry.summary.expiresAt)) throw new Error("建筑审批已过期");
+    if (entry.summary.expiresAt && Date.now() >= Date.parse(entry.summary.expiresAt)) throw new Error("建筑审批已过期");
     let verified = 0;
     const stop = () => { void this.rpc.close(); };
     const executionSignal = AbortSignal.any([signal, AbortSignal.timeout(this.config.codex.turnTimeoutMs)]);

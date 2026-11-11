@@ -46,18 +46,22 @@ export class TaskManager {
   list(world: string) { return [...this.tasks.values()].filter(task => task.worldSessionId === world).map(task => this.snapshot(task)); }
   current(world: string) { return this.active?.worldSessionId === world ? this.snapshot(this.active) : undefined; }
 
-  approve(world: string, id: string) {
-    const task = this.tasks.get(id);
-    if (!task || task.worldSessionId !== world || task !== this.active || task.status !== "AWAITING_APPROVAL" || !task.approval) throw new Error("当前没有该任务的待审批计划");
-    if (Date.now() >= Date.parse(task.build!.expiresAt)) throw new Error("审批已过期，请重新提交任务");
+  approve(world: string, id?: string) {
+    const task = id ? this.tasks.get(id) : this.active;
+    if (!task || task.worldSessionId !== world || task !== this.active || task.status !== "AWAITING_APPROVAL" || !task.approval) {
+      throw new Error(id ? "当前没有该任务的待审批计划" : "当前没有等待审批的计划");
+    }
+    if (task.build!.expiresAt && Date.now() >= Date.parse(task.build!.expiresAt)) throw new Error("审批已过期，请重新提交任务");
     task.approval.accept();
     return this.snapshot(task);
   }
 
-  reject(world: string, id: string) {
-    const task = this.tasks.get(id);
-    if (!task || task.worldSessionId !== world || task.status !== "AWAITING_APPROVAL") throw new Error("当前没有该任务的待审批计划");
-    return this.cancel(world, id);
+  reject(world: string, id?: string) {
+    const task = id ? this.tasks.get(id) : this.active;
+    if (!task || task.worldSessionId !== world || task.status !== "AWAITING_APPROVAL") {
+      throw new Error(id ? "当前没有该任务的待审批计划" : "当前没有等待审批的计划");
+    }
+    return this.cancel(world, task.id);
   }
 
   cancel(world: string, id?: string) {
@@ -138,8 +142,11 @@ export class TaskManager {
   private awaitApproval(task: Task, proposal: BuildProposal) {
     return new Promise<void>((resolve, reject) => {
       const abort = () => { cleanup(); reject(new Error("任务已取消")); };
-      const timer = setTimeout(() => { cleanup(); reject(new Error("建筑审批已过期，请重新提交任务")); }, Math.max(0, Date.parse(proposal.summary.expiresAt) - Date.now()));
-      const cleanup = () => { clearTimeout(timer); task.controller.signal.removeEventListener("abort", abort); task.approval = undefined; };
+      let timer: NodeJS.Timeout | undefined;
+      if (proposal.summary.expiresAt) {
+        timer = setTimeout(() => { cleanup(); reject(new Error("建筑审批已过期，请重新提交任务")); }, Math.max(0, Date.parse(proposal.summary.expiresAt) - Date.now()));
+      }
+      const cleanup = () => { if (timer) clearTimeout(timer); task.controller.signal.removeEventListener("abort", abort); task.approval = undefined; };
       task.approval = { accept: () => { cleanup(); this.update(task, "BUILDING"); resolve(); } };
       task.controller.signal.addEventListener("abort", abort, { once: true });
       this.update(task, "AWAITING_APPROVAL");

@@ -32,6 +32,16 @@ test("building stays disabled unless observation is enabled", () => {
   assert.equal(configSchema.parse({}).building.enabled, false);
 });
 
+test("approval remains valid without a configured deadline", async t => {
+  const s = await setup(t, "build-good", { approvalTimeoutMs: 0 });
+  const task = s.manager.submit("world", "建造小石砖柱");
+  await until(() => s.task().status === "AWAITING_APPROVAL");
+  assert.equal(s.task().build?.expiresAt, undefined);
+  await new Promise(resolve => setTimeout(resolve, 150));
+  s.manager.approve("world");
+  await until(() => s.task().status === "COMPLETED");
+  assert.equal((await s.writes()).length, 2);
+});
 test("no writes before approval; executes and verifies an approved immutable plan exactly once", async t => {
   const s = await setup(t);
   const task = s.manager.submit("world", "建造小石砖柱");
@@ -43,7 +53,7 @@ test("no writes before approval; executes and verifies an approved immutable pla
   assert.equal(s.task().build?.operations[0]?.blockId, "minecraft:stone_bricks");
   await writeFile(s.task().build!.planFile, JSON.stringify({ malicious: "modified plan file is not executable" }));
   assert.throws(() => s.manager.approve("other-world", task.id));
-  s.manager.approve("world", task.id);
+  s.manager.approve("world");
   assert.throws(() => s.manager.approve("world", task.id));
   await until(() => s.task().status === "COMPLETED");
   const writes = await s.writes();
@@ -61,7 +71,7 @@ for (const action of ["reject", "cancel", "world-change", "expire"]) {
     const s = await setup(t, "build-good", action === "expire" ? { approvalTimeoutMs: 100 } : {});
     const task = s.manager.submit("world", "建造小柱");
     await until(() => s.task().status === "AWAITING_APPROVAL");
-    if (action === "reject") s.manager.reject("world", task.id);
+    if (action === "reject") s.manager.reject("world");
     if (action === "cancel") s.manager.cancel("world", task.id);
     if (action === "world-change") await s.manager.setWorld("other");
     else await until(() => ["FAILED", "CANCELLED"].includes(s.task().status));

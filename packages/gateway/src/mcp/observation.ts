@@ -50,12 +50,20 @@ export async function observationConfig(config: GatewayConfig): Promise<NonNulla
   };
 }
 
+export function unwrapGameData(value: unknown): unknown {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    if (record.untrusted === true && Object.hasOwn(record, "data")) return record.data;
+  }
+  return value;
+}
+
 export function jsonResult(result: McpServerToolCallResponse, tool: string): unknown {
   if (result.isError) throw new Error(`Minecraft 读取失败（${tool}），请检查游戏和 MCPFabric 连接`);
-  if (result.structuredContent !== undefined && result.structuredContent !== null) return result.structuredContent;
+  if (result.structuredContent !== undefined && result.structuredContent !== null) return unwrapGameData(result.structuredContent);
   for (const item of result.content) {
     if (item && typeof item === "object" && !Array.isArray(item) && item.type === "text" && typeof item.text === "string") {
-      try { return JSON.parse(item.text); } catch { /* Try the next content item. */ }
+      try { return unwrapGameData(JSON.parse(item.text)); } catch { /* Try the next content item. */ }
     }
   }
   throw new Error(`Minecraft 读取结果格式无效（${tool}）`);

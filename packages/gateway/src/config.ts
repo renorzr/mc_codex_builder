@@ -15,8 +15,8 @@ export const configSchema = z.object({
     maxBlocks: z.number().int().min(1).max(4096).default(2048),
     maxDistance: z.number().int().min(1).max(64).default(32),
     allowOverwrite: z.boolean().default(false),
-    approvalTimeoutMs: z.number().int().min(100).max(600000).default(120000),
-  }).strict().default({ enabled: false, maxBlocks: 2048, maxDistance: 32, allowOverwrite: false, approvalTimeoutMs: 120000 }),
+    approvalTimeoutMs: z.number().int().min(0).max(600000).default(0),
+  }).strict().default({ enabled: false, maxBlocks: 2048, maxDistance: 32, allowOverwrite: false, approvalTimeoutMs: 0 }),
   world: z.object({
     enabled: z.boolean().default(false),
     mcpServerPath: z.string().min(1).optional(),

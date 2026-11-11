@@ -16,7 +16,7 @@ export interface BuildSummary {
   name: string; dimension: string; worldId: string;
   from: BlockPosition; to: BlockPosition; materials: string[];
   changedBlocks: number; overwrittenBlocks: number; operationCount: number;
-  fingerprint: string; expiresAt: string; planFile: string;
+  fingerprint: string; expiresAt?: string; planFile: string;
   operations: BuildPlan["operations"];
 }
 export const positionKey = ({ x, y, z }: BlockPosition) => `${x},${y},${z}`;
@@ -62,5 +62,6 @@ export function groupBuildRows(cells: Array<BlockPosition & { blockId: string }>
 
 export function buildFingerprint(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 export function describeBuild(summary: BuildSummary, taskId: string) {
-  return `建筑方案：${summary.name}\n世界：${summary.worldId}；维度：${summary.dimension}\n范围：(${Object.values(summary.from).join(", ")}) → (${Object.values(summary.to).join(", ")})\n实际将改变 ${summary.changedBlocks} 格，其中覆盖非空气 ${summary.overwrittenBlocks} 格；${summary.operationCount} 批。\n材料：${summary.materials.join(", ")}\n方案 ${summary.fingerprint.slice(0, 12)}；确认截止 ${summary.expiresAt}\n完整操作清单：${summary.planFile}\n输入 !codex approve ${taskId} 执行，或 !codex reject ${taskId} 取消。`;
+  const deadline = summary.expiresAt ? `确认截止 ${summary.expiresAt}` : "审批不过期";
+  return `建筑方案：${summary.name}\n世界：${summary.worldId}；维度：${summary.dimension}\n范围：(${Object.values(summary.from).join(", ")}) → (${Object.values(summary.to).join(", ")})\n实际将改变 ${summary.changedBlocks} 格，其中覆盖非空气 ${summary.overwrittenBlocks} 格；${summary.operationCount} 批。\n材料：${summary.materials.join(", ")}\n方案 ${summary.fingerprint.slice(0, 12)}；${deadline}\n完整操作清单：${summary.planFile}\n输入 !codex approve 执行（或 !codex approve ${taskId} 指定任务），或 !codex reject 取消。`;
 }

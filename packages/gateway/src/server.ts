@@ -8,11 +8,11 @@ import { authenticated } from "./config.js";
 import type { GatewayConfig } from "./config.js";
 import { TaskManager } from "./task-manager.js";
 
-const commands = "@codex <任务>；!codex status；!codex queue；!codex stop [task-id]；!codex help。";
+const commands = "@codex <任务>；!codex status；!codex queue；!codex stop [task-id]；!codex approve [task-id]；!codex reject [task-id]；!codex help。";
 
 export async function startGateway(config: GatewayConfig, token: string, backend: Backend) {
   const mode = config.building.enabled ? "build" : config.world.enabled ? "observe" : "chat";
-  const help = commands + (mode === "build" ? "当前建造需逐任务确认：!codex approve/reject <task-id>。" : (mode === "observe" ? "当前为只读世界观察，" : "当前仅支持聊天，") + "建造与 approve/reject 尚未开放。");
+  const help = commands + (mode === "build" ? "当前建造需逐任务确认：!codex approve [task-id] / !codex reject [task-id]；省略 task-id 时作用于当前待审批任务。" : (mode === "observe" ? "当前为只读世界观察，" : "当前仅支持聊天，") + "建造与 approve/reject 尚未开放。");
   let socket: WebSocket | undefined;
   let world: string | undefined;
   let stopping = false;

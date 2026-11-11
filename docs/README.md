@@ -2,7 +2,7 @@
 
 Minecraft Java Edition AI 建造助手。最终目标是在 Windows 游戏聊天框输入指令，由 Codex 观察、规划并建造。
 
-**Phase 1 聊天链路和 Phase 2 只读世界观察均已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内人工验收。** Phase 3 已实现可选的小型建筑计划、审批、执行和读回验证，完成本机模拟测试，真实游戏建造验收待完成，不能视为完整 MVP。
+**Phase 1 聊天、Phase 2 只读观察和 Phase 3 小型建筑闭环均已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内人工验收。** 仍不开放任意命令、NBT、危险方块或无限范围建造，不能把有限建造能力视为任意世界操作权限。
 
 ## 无游戏启动
 
@@ -67,11 +67,12 @@ npm run dev
 ```text
 @codex 在我前方空地上方建一个 5×5、高 6 格的石砖小塔，保留内部空气。
 !codex status
-!codex approve <task-id>
-# 或 !codex reject <task-id>
+!codex approve
+# 或 !codex reject
+# 需要指定任务时：!codex approve <task-id>
 ```
 
-模型只生成计划。Gateway 显示坐标、材料和实际改变数量，等待明确确认后才按固定计划分批执行，逐批读回，最后检查区域和截图。拒绝、过期或切换世界会使旧审批失效；中断不自动回滚已生效方块。详细配置与边界见 [开发说明](development.md#小型建筑与审批phase-3)。
+模型只生成计划。Gateway 显示坐标、材料和实际改变数量，等待明确确认后才按固定计划分批执行，逐批读回，最后检查区域和截图。拒绝、切换世界或配置的过期时间会使旧审批失效；中断不自动回滚已生效方块。详细配置与边界见 [开发说明](development.md#小型建筑与审批phase-3)。
 
 ## 验证
 
@@ -101,7 +102,7 @@ Windows 使用 `gradlew.bat test build --no-daemon`。游戏目录中的 `config
 - [通信协议](protocol.md)：版本、认证、任务状态、会话生命周期和幂等范围。
 - [Phase 1 本机开发报告](PHASE1_REPORT.md)：本次实现和实际验证记录。
 - [Phase 2 只读观察报告](PHASE2_REPORT.md)：读取接入、权限限制、无游戏与游戏内验证。
-- [Phase 3 建造报告](PHASE3_REPORT.md)：具体计划审批、固定执行器、模拟验证与游戏验收清单。
+- [Phase 3 建造报告](PHASE3_REPORT.md)：具体计划审批、固定执行器、模拟验证与真实游戏验收。
 - [MVP 技术设计](MVP_DESIGN.md)、[Phase 0 历史验证报告](PHASE0_REPORT.md)。
 - `packages/gateway`：Node.js/TypeScript Gateway、mock/真实 Codex 后端、终端客户端。
 - `packages/shared`：协议校验、任务类型、命令解析。

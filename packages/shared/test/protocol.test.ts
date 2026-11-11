@@ -5,7 +5,10 @@ import { clientMessageSchema, envelope, parseChatCommand } from "../src/index.js
 test("only explicit prefixes create tasks; validates control arguments", () => {
   assert.deepEqual(parseChatCommand("@CODEX 建一个塔"), { kind: "task", text: "建一个塔" });
   assert.deepEqual(parseChatCommand("!codex stop task-123"), { kind: "stop", taskId: "task-123" });
-  for (const text of ["hello", "@codextra foo", "@codex", "!codex status junk", "!codex approve", "!codex unknown"]) {
+  assert.deepEqual(parseChatCommand("!codex approve"), { kind: "approve", taskId: undefined });
+  assert.deepEqual(parseChatCommand("!codex reject"), { kind: "reject", taskId: undefined });
+  assert.deepEqual(parseChatCommand("!codex approve task-123"), { kind: "approve", taskId: "task-123" });
+  for (const text of ["hello", "@codextra foo", "@codex", "!codex status junk", "!codex approve a b", "!codex unknown"]) {
     assert.throws(() => parseChatCommand(text));
   }
 });

@@ -39,7 +39,7 @@ PowerShell 使用 `$env:GATEWAY_BACKEND = 'codex'`，然后执行 `npm run dev`�
 
 Gateway 懒启动一个长期 app-server 子进程；同一活跃会话复用 Thread。Codex 工作目录位于 `.local/codex-workspace`，没有把仓库源代码目录当作任务工作目录。进程异常退出时当前任务失败，下一条命令重启进程并尝试恢复 Thread；不自动重放结果未知的 Turn。
 
-Phase 1 是聊天阶段：只读沙箱、`untrusted` 审批策略、关闭 shell/插件/apps/多 Agent/hooks/浏览器/电脑工具特性和已配置 MCP 服务，并拒绝收到的工具审批请求。建筑计划审批尚未实现，`approve/reject` 会明确报错。后续世界写入必须另行设计可执行的权限边界，不能直接移除此限制就视为具备建筑审批。
+Phase 1 是聊天阶段：只读沙箱、`untrusted` 审批策略、关闭 shell/插件/apps/多 Agent/hooks/浏览器/电脑工具特性和已配置 MCP 服务，并拒绝收到的工具审批请求。Phase 3 另以可审阅、单次有效的固定建筑计划和读回验证开放有限写入，不能把审批成功视为任意世界操作权限。
 
 ## 配置
 
@@ -143,8 +143,10 @@ Windows 在 PowerShell 创建目录和复制配置后，设置 `$env:GATEWAY_CON
 | `enabled` | `false` | 显式启用计划与审批后的执行 |
 | `maxBlocks` | `2048` | 目标格数、单操作体积及完整包围区域体积上限；配置最大 4096 |
 | `maxDistance` | `32` | 计划中每个目标坐标距离本轮玩家位置的各轴最大偏移 |
+`config/gateway.build.example.json` 将 `codex.turnTimeoutMs` 设为 `900000`（15 分钟），避免较长规划被默认 3 分钟超时截断。
+
 | `allowOverwrite` | `false` | 默认拒绝改变非空气方块；开启后仍需显示覆盖数量并逐任务确认 |
-| `approvalTimeoutMs` | `120000` | 计划显示后可确认的时间；执行开始后不要求反复确认 |
+| `approvalTimeoutMs` | `0` | `0` 表示审批不过期；仍保持单次使用、世界/计划绑定和执行前复查 |
 
 首版只支持 12 种静态整方块，材料清单在 `packages/shared/src/build-plan.ts`。不支持空气清除、方块状态、NBT、容器、液体、重力方块、红石、命令或玩家控制。计划最多 64 个填充操作；重叠部分按最终赋值去重，执行拆成互不重叠的行批次，最多 256 批。同一点使用 `set_block`，一行使用 `fill_blocks`，按高度从低到高执行。
 
@@ -152,12 +154,12 @@ Windows 在 PowerShell 创建目录和复制配置后，设置 `$env:GATEWAY_CON
 
 ```text
 !codex status
-!codex approve task-...
-!codex reject task-...
+!codex approve [task-id]
+!codex reject [task-id]
 !codex stop [task-id]
 ```
 
-`status` 可再次查看等待确认的摘要。完整操作清单保存在 `.local/plans/<fingerprint>.json`，供确认前查看；修改文件不会改变实际执行计划。审批只接受当前活跃任务和当前客户端会话，单次使用；拒绝、过期、退出、切换世界、Gateway 重启或执行失败都必须重新规划确认。待审批任务占用串行队列，后续任务等待。
+`status` 可再次查看等待确认的摘要；`approve`/`reject` 省略 task-id 时作用于当前唯一待审批任务。完整操作清单保存在 `.local/plans/<fingerprint>.json`，供确认前查看；修改文件不会改变实际执行计划。审批只接受当前活跃任务和当前客户端会话，单次使用；即使不过期，拒绝、退出、切换世界、Gateway 重启或执行失败仍会使计划失效。配置正数 `approvalTimeoutMs` 时才启用时间过期。待审批任务占用串行队列，后续任务等待。
 
 确认后由 Gateway 的固定执行器使用独立 Thread 调用写工具；这个 Thread 从不运行模型 Turn，模型不会拿到写工具。执行前复查 `sp:` 世界 ID、玩家维度、写入能力和整个包围区的完整状态；每批再检查上下文和将写位置，写后立即读回，出错停止后续批次，不重试。所有写参数来自内存中已校验的最终计划，不接受客户端另传坐标或方块参数。
 
@@ -174,7 +176,7 @@ npm run smoke:build -- --model
 
 默认使用 Gateway、WebSocket、JSON-RPC 模拟后端，检查显示审批、确认前零写入、确认后两批写入及四格读回、重复审批不重放写入。`--model` 使用真实 Codex app-server 与真实模型，连接具有临时 JSON 世界状态的独立 MCP 测试服务，额外验证结构化计划和截图检查通道，会使用账户模型额度。全部写入仅发生在临时模拟数据中，不连接 Minecraft。
 
-建造测试图片是 128×128 的棋盘占位图，不能作为建筑外观证据。详细结果和真实游戏清单见 [Phase 3 报告](PHASE3_REPORT.md)。
+建造测试图片是 128×128 的棋盘占位图，不能作为建筑外观证据。详细结果和真实游戏验收见 [Phase 3 报告](PHASE3_REPORT.md)。
 
 ## Java 与 Mod
 
@@ -249,3 +251,12 @@ Codex 升级后执行 `npm run codex:generate`，审查 `packages/gateway/src/co
 - [x] 建造、命令、移动请求均不会执行；`approve/reject` 不放行写入。
 
 以上项目均在真实单人集成世界中完成验证。
+
+Phase 3 小型建筑闭环已于 2026-11-11 在同一 Windows/Fabric 环境中完成人工验收：
+
+- [x] 关闭建筑模式时仍保持聊天/只读行为，不会写入。
+- [x] 方案生成后世界不变，确认后才按固定批次执行。
+- [x] `!codex approve` 和 `!codex reject` 可省略 task-id。
+- [x] 写入后逐批读回，最终区域和截图检查正常。
+- [x] 拒绝、退出、切换世界和配置过期会使旧审批失效。
+- [x] 默认审批不过期，建筑模型回复超时为 15 分钟。

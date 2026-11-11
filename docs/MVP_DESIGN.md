@@ -1,6 +1,6 @@
 # Minecraft Codex Builder — MVP 技术设计与开发任务书
 
-> 实现进度（2026-11-10）：[Phase 1](PHASE1_REPORT.md) 和 [Phase 2](PHASE2_REPORT.md) 已完成 Windows 游戏内验收。[Phase 3](PHASE3_REPORT.md) 的小型建筑计划、审批、执行与验证已实现并完成本机模拟测试，真实游戏建造验收待完成。下文保留原始设计；当前协议以 [protocol.md](protocol.md) 为准，Companion 继续使用 `phase0/companion-mod` 路径。
+> 实现进度（2026-11-11）：[Phase 1](PHASE1_REPORT.md) 聊天、[Phase 2](PHASE2_REPORT.md) 只读观察和 [Phase 3](PHASE3_REPORT.md) 小型建筑闭环均已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内验收。下文保留原始设计；当前协议以 [protocol.md](protocol.md) 为准，Companion 继续使用 `phase0/companion-mod` 路径。
 
 ## 1. 项目目标
 

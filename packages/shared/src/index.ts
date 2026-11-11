@@ -61,7 +61,7 @@ export type ChatCommand =
   | { kind: "task"; text: string }
   | { kind: "status" | "queue" | "help" }
   | { kind: "stop"; taskId?: string }
-  | { kind: "approve" | "reject"; taskId: string };
+  | { kind: "approve" | "reject"; taskId?: string };
 
 export function parseChatCommand(text: string): ChatCommand {
   const task = /^@codex(?:\s+(.*))?$/isu.exec(text);
@@ -80,8 +80,8 @@ export function parseChatCommand(text: string): ChatCommand {
       if (args.length > 1 || (args[0] && !id.safeParse(args[0]).success)) throw new Error("用法：!codex stop [task-id]");
       return { kind: "stop", taskId: args[0] };
     case "approve": case "reject":
-      if (args.length !== 1 || !id.safeParse(args[0]).success) throw new Error("用法：!codex " + verb + " <task-id>");
-      return { kind: verb.toLowerCase() as "approve" | "reject", taskId: args[0]! };
+      if (args.length > 1 || (args[0] && !id.safeParse(args[0]).success)) throw new Error("用法：!codex " + verb + " [task-id]");
+      return { kind: verb.toLowerCase() as "approve" | "reject", taskId: args[0] };
     default: throw new Error("未知控制命令，输入 !codex help 查看帮助");
   }
 }
