@@ -2,6 +2,8 @@
 
 > 实现进度（2026-11-11）：[Phase 1](PHASE1_REPORT.md) 聊天、[Phase 2](PHASE2_REPORT.md) 只读观察和 [Phase 3](PHASE3_REPORT.md) 小型建筑闭环均已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内验收。下文保留原始设计；当前协议以 [protocol.md](protocol.md) 为准，Companion 继续使用 `phase0/companion-mod` 路径。
 
+> [Phase 4](PHASE4_REPORT.md) 已实现有界任务历史、启动取消、旧审批失效和网络重连完善，通过 Linux 无游戏自动化验证；本阶段的 Windows 游戏内稳定性验收尚未完成。
+
 ## 1. 项目目标
 
 开发一个运行在 Windows 本机的 Minecraft AI 建造助手。

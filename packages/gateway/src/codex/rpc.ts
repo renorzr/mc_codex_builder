@@ -13,6 +13,7 @@ export class RpcClient extends EventEmitter {
   private buffer = "";
   private dead = false;
   private exitPromise: Promise<void>;
+  private closing?: Promise<void>;
 
   constructor(command: string, args: string[], cwd: string, private timeoutMs: number) {
     super();
@@ -90,10 +91,12 @@ export class RpcClient extends EventEmitter {
     this.terminate();
   }
 
-  async close() {
-    this.fail(new Error("app-server closed"));
+  close() {
+    if (this.closing) return this.closing;
     const killTimer = setTimeout(() => this.terminate(true), 1500);
-    try { await this.exitPromise; } finally { clearTimeout(killTimer); }
+    this.closing = this.exitPromise.finally(() => { clearTimeout(killTimer); });
+    this.fail(new Error("app-server closed"));
+    return this.closing;
   }
 
   private terminate(force = false) {

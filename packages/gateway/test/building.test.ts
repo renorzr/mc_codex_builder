@@ -150,3 +150,17 @@ test("an awaiting approval blocks later tasks until rejection", async t => {
   await until(() => s.manager.list("world").find(task => task.id === second.id)?.status === "AWAITING_APPROVAL");
   assert.equal((await s.writes()).length, 0);
 });
+
+test("app-server exit invalidates an idle approval and the next plan requires fresh confirmation", async t => {
+  const s = await setup(t);
+  const first = s.manager.submit("world", "第一份计划");
+  await until(() => s.task().status === "AWAITING_APPROVAL");
+  const pid = Number(await readFile(path.join(s.config.dataDir, "rpc.jsonl.pid"), "utf8"));
+  process.kill(pid, "SIGTERM");
+  await until(() => s.task().status === "FAILED");
+  assert.throws(() => s.manager.approve("world", first.id));
+  assert.equal((await s.writes()).length, 0);
+  const second = s.manager.submit("world", "重新规划");
+  await until(() => s.manager.list("world").find(task => task.id === second.id)?.status === "AWAITING_APPROVAL");
+  assert.equal((await s.writes()).length, 0);
+});

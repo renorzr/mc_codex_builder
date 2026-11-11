@@ -7,12 +7,14 @@ import { fileURLToPath } from "node:url";
 import { CodexBackend } from "../src/codex/backend.js";
 import { configSchema, loadToken, authenticated } from "../src/config.js";
 import type { RpcMessage } from "../src/codex/rpc.js";
+import { existsSync, readFileSync } from "node:fs";
+import { until } from "./helpers.js";
 
 const fixture = fileURLToPath(new URL("fixtures/app-server.mjs", import.meta.url));
-async function setup(t: any, timeouts = {}) {
+async function setup(t: any, timeouts = {}, scenario = "good") {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), "codex-test-"));
   const log = path.join(dataDir, "rpc.jsonl");
-  const backend = new CodexBackend(configSchema.parse({ dataDir, codex: { command: process.execPath, args: [fixture, log], requestTimeoutMs: 2000, turnTimeoutMs: 3000, ...timeouts } }));
+  const backend = new CodexBackend(configSchema.parse({ dataDir, codex: { command: process.execPath, args: [fixture, log, scenario], requestTimeoutMs: 2000, turnTimeoutMs: 3000, ...timeouts } }));
   t.after(async () => { await backend.close(); await rm(dataDir, { recursive: true, force: true }); });
   return { backend, log, dataDir, messages: async () => (await readFile(log, "utf8")).trim().split("\n").map(line => JSON.parse(line) as RpcMessage) };
 }
@@ -87,4 +89,39 @@ test("token creation is persistent, private and never accepts short credentials"
   assert.equal(authenticated("Bearer wrong", first), false);
   await assert.rejects(loadToken(dataDir, "short"));
   assert.throws(() => configSchema.parse({ host: "0.0.0.0" }));
+});
+
+for (const [scenario, method] of [["hang-initialize", "initialize"], ["hang-config", "config/read"], ["hang-thread", "thread/start"], ["hang-resume", "thread/resume"]]) {
+  test(`cancellation terminates a process stuck in ${method}`, async t => {
+    const { backend, log } = await setup(t, { requestTimeoutMs: 10000 }, scenario);
+    if (scenario === "hang-resume") await backend.run("world", "first", signal(), () => {});
+    const controller = new AbortController();
+    const pending = backend.run("world", "cancel", controller.signal, () => {});
+    const rejected = assert.rejects(pending);
+    await until(() => existsSync(log) && readFileSync(log, "utf8").includes(`"method":"${method}"`));
+    const pid = Number(await readFile(log + ".pid", "utf8"));
+    const started = Date.now();
+    controller.abort();
+    await rejected;
+    assert(Date.now() - started < 3000);
+    assert.throws(() => process.kill(pid, 0));
+  });
+}
+
+test("closing the backend does not wait for a stalled initialization timeout", async t => {
+  const { backend, log } = await setup(t, { requestTimeoutMs: 10000 }, "hang-initialize");
+  const rejected = assert.rejects(backend.run("world", "start", signal(), () => {}));
+  await until(() => existsSync(log));
+  const started = Date.now();
+  await Promise.all([backend.close(), backend.close(), rejected]);
+  assert(Date.now() - started < 3000);
+});
+
+test("failed thread resume does not trap later commands in the same stale thread", async t => {
+  const { backend, messages } = await setup(t, {}, "reject-resume");
+  await backend.run("world", "first", signal(), () => {});
+  await assert.rejects(backend.run("world", "failed-resume", signal(), () => {}));
+  assert.equal(await backend.run("world", "new-thread", signal(), () => {}), "fixture: new-thread");
+  assert.equal((await messages()).filter(m => m.method === "thread/start").length, 2);
+  assert.equal((await messages()).filter(m => m.method === "turn/start").length, 2);
 });

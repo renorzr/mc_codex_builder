@@ -5,6 +5,7 @@ import path from "node:path";
 import { configSchema } from "../packages/gateway/dist/config.js";
 import { MockBackend } from "../packages/gateway/dist/backend.js";
 import { startGateway } from "../packages/gateway/dist/server.js";
+import { WebSocketServer } from "ws";
 
 const deps = path.resolve(".local/java-deps");
 const classes = path.resolve(".local/java-check/classes");
@@ -32,14 +33,14 @@ const src = "phase0/companion-mod/src";
 const pkg = "/java/dev/mccodex/companion/";
 const sources = [
   ...["ChatCommand", "ChatCommandInterceptor", "GatewayConfig", "GatewayProtocol", "GatewayConnection"].map(name => `${src}/main${pkg}${name}.java`),
-  ...["ChatCommandInterceptorTest", "GatewayProtocolTest", "GatewaySmokeClient"].map(name => `${src}/test${pkg}${name}.java`),
+  ...["ChatCommandInterceptorTest", "GatewayProtocolTest", "GatewaySmokeClient", "GatewayRecoveryClient", "GatewayRegistrationClient"].map(name => `${src}/test${pkg}${name}.java`),
 ];
 const classpath = [...jars, classes].join(path.delimiter);
 execFileSync("javac", ["--release", "21", "-encoding", "UTF-8", "-cp", classpath, "-d", classes, ...sources], { stdio: "inherit" });
 execFileSync("java", ["-jar", jars[1], "execute", "--class-path", [classes, jars[0]].join(path.delimiter), "--scan-class-path", "--disable-banner"], { stdio: "inherit" });
 
 const token = randomBytes(32).toString("hex");
-const gateway = await startGateway(configSchema.parse({ port: 0 }), token, new MockBackend());
+const gateway = await startGateway(configSchema.parse({ port: 0, history: { enabled: false } }), token, new MockBackend());
 try {
   await new Promise((resolve, reject) => {
     const child = spawn("java", ["-cp", classpath, "dev.mccodex.companion.GatewaySmokeClient", gateway.url, token], { stdio: "inherit" });
@@ -48,3 +49,52 @@ try {
     child.on("exit", code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error("Java smoke exited " + code)); });
   });
 } finally { await gateway.close(); }
+
+const submitted = [];
+const mock = new MockBackend(5);
+const backend = {
+  kind: "mock",
+  async run(world, text, signal, report) { submitted.push(text); return mock.run(world, text, signal, report); },
+  async reset() {}, async close() {},
+};
+let recovery = await startGateway(configSchema.parse({ port: 0, history: { enabled: false } }), token, backend);
+let restarted;
+try {
+  await new Promise((resolve, reject) => {
+    const child = spawn("java", ["-cp", classpath, "dev.mccodex.companion.GatewayRecoveryClient", recovery.url, token], { stdio: ["ignore", "pipe", "inherit"] });
+    let lines = "", restarting = false;
+    const timer = setTimeout(() => { child.kill(); reject(new Error("Java recovery timed out")); }, 30000);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", data => {
+      process.stdout.write(data);
+      lines += data;
+      if (!restarting && lines.includes("JAVA_RESTART_GATEWAY_NOW")) {
+        restarting = true;
+        const port = recovery.port;
+        restarted = (async () => {
+          await recovery.close();
+          recovery = await startGateway(configSchema.parse({ port, history: { enabled: false } }), token, backend);
+        })();
+        restarted.catch(error => { child.kill(); clearTimeout(timer); reject(error); });
+      }
+    });
+    child.on("error", error => { clearTimeout(timer); reject(error); });
+    child.on("exit", code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error("Java recovery exited " + code)); });
+  });
+  if (submitted.length !== 13 || new Set(submitted).size !== 13) throw new Error("Commands were replayed or lost across restart");
+} finally { await restarted; await recovery.close(); }
+
+const silent = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+await new Promise(resolve => silent.once("listening", resolve));
+try {
+  await new Promise((resolve, reject) => {
+    const url = `ws://127.0.0.1:${silent.address().port}/ws`;
+    const child = spawn("java", ["-cp", classpath, "dev.mccodex.companion.GatewayRegistrationClient", url, token], { stdio: "inherit" });
+    const timer = setTimeout(() => { child.kill(); reject(new Error("Registration timeout test hung")); }, 12000);
+    child.on("error", error => { clearTimeout(timer); reject(error); });
+    child.on("exit", code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error("Java registration exited " + code)); });
+  });
+} finally {
+  for (const socket of silent.clients) socket.terminate();
+  await new Promise(resolve => silent.close(resolve));
+}

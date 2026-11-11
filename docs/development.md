@@ -37,7 +37,9 @@ GATEWAY_BACKEND=codex npm run dev
 
 PowerShell 使用 `$env:GATEWAY_BACKEND = 'codex'`，然后执行 `npm run dev`。不设置模型名，沿用用户配置。真实生成会消耗账户额度。
 
-Gateway 懒启动一个长期 app-server 子进程；同一活跃会话复用 Thread。Codex 工作目录位于 `.local/codex-workspace`，没有把仓库源代码目录当作任务工作目录。进程异常退出时当前任务失败，下一条命令重启进程并尝试恢复 Thread；不自动重放结果未知的 Turn。
+Gateway 懒启动一个长期 app-server 子进程；同一活跃会话复用 Thread。Codex 工作目录位于 `.local/codex-workspace`，没有把仓库源代码目录当作任务工作目录。进程异常退出时当前任务失败，下一条命令重启进程并尝试恢复 Thread；不自动重放结果未知的 Turn。若恢复请求被服务端拒绝，该任务失败并清除旧 Thread ID，再下一条新命令创建新 Thread。Codex 断线也会立即使待审批计划失效。
+
+在初始化、配置读取、Thread 创建/恢复或世界预检期间停止任务，会关闭子进程并等待退出，不再等待正常 RPC 超时。正常模型回合仍优先使用 `turn/interrupt`。Gateway 收到退出信号后停止接受连接、关闭 WebSocket 与未完成 HTTP 连接，再取消任务并清理子进程；关闭可重复调用。
 
 Phase 1 是聊天阶段：只读沙箱、`untrusted` 审批策略、关闭 shell/插件/apps/多 Agent/hooks/浏览器/电脑工具特性和已配置 MCP 服务，并拒绝收到的工具审批请求。Phase 3 另以可审阅、单次有效的固定建筑计划和读回验证开放有限写入，不能把审批成功视为任意世界操作权限。
 
@@ -60,6 +62,25 @@ GATEWAY_CONFIG=config/gateway.example.json npm run dev
 启动 Gateway 和终端时，端口、token 和数据目录应一致。自定义数据目录需自行排除 Git；默认 `.local/` 已忽略。
 
 健康检查为 `GET /health`，必须携带 `Authorization: Bearer <token>`。只表示 Gateway 存活与后端模式；Codex 懒启动，不能由健康检查推断已完成 Codex 认证或世界连接。
+
+## 任务历史与重启（Phase 4）
+
+游戏内和终端均可使用 `!codex history [条数]`，默认 10 条，范围 1–50。历史跨世界会话和 Gateway 重启保留，只列任务编号、最近状态、时间和可选建造数量/指纹；不提供旧提示词、模型回复或工具原始结果。`status`/`queue` 仍只查询当前内存任务。历史不恢复审批、Thread、命令回执或执行队列，也不会自动重试任务。
+
+默认日志位于 `.local/history/tasks.jsonl`，轮换归档为 `.1`、`.2`。配置字段如下，各模式均适用：
+
+| `history` 配置 | 默认 | 范围与作用 |
+|---|---|---|
+| `enabled` | `true` | 设为 false 时不读写日志，历史查询明确提示未启用 |
+| `maxBytes` | `1048576` | 每文件 4096–4194304 字节，追加前轮换 |
+| `maxFiles` | `3` | 1–5，包含当前文件 |
+| `maxEntries` | `200` | 内存最近任务索引 1–2000 条；跨重启可查询范围还受磁盘轮换限制 |
+
+日志只保存严格校验的状态元数据，不写入提示词、模型正文、原始异常、工具内容或凭证。新目录的 POSIX 权限为 `0700`，日志为 `0600`。Windows 文件访问权限由运行目录 ACL 管理。一个 dataDir 只供一个 Gateway 写入，不提供多进程写锁。
+
+重启时，保留记录中未结束的任务标为 `INTERRUPTED`，不会进入新任务队列。建造中断可能已经影响世界，需人工核查；不能通过历史确认旧任务或重放磁盘计划。当前日志最后一行若写到一半则截断修复，已换行的损坏记录或不完整归档会明确阻止启动，保留文件排查。运行期间写入故障不会替代原有审批或中断任务，`history.healthy` 将在本次运行中保持 false，历史查询提示记录可能不完整。
+
+认证 `/health` 返回 `history: { enabled, healthy, recovered, retainedEntries }`；`recovered` 是本次启动标记中断的任务数。追加使用文件 flush，但轮换涉及多个文件，不是原子事务；日志有保留上限，也不记录逐批工具证据，不能作为完整审计或“绝无写入”的证明。`.local/plans/` 审核副本仍按 Phase 3 规则单独保存，不随历史日志轮换。
 
 ## 只读世界观察（Phase 2）
 
@@ -143,10 +164,10 @@ Windows 在 PowerShell 创建目录和复制配置后，设置 `$env:GATEWAY_CON
 | `enabled` | `false` | 显式启用计划与审批后的执行 |
 | `maxBlocks` | `2048` | 目标格数、单操作体积及完整包围区域体积上限；配置最大 4096 |
 | `maxDistance` | `32` | 计划中每个目标坐标距离本轮玩家位置的各轴最大偏移 |
-`config/gateway.build.example.json` 将 `codex.turnTimeoutMs` 设为 `900000`（15 分钟），避免较长规划被默认 3 分钟超时截断。
-
 | `allowOverwrite` | `false` | 默认拒绝改变非空气方块；开启后仍需显示覆盖数量并逐任务确认 |
 | `approvalTimeoutMs` | `0` | `0` 表示审批不过期；仍保持单次使用、世界/计划绑定和执行前复查 |
+
+`config/gateway.build.example.json` 将 `codex.turnTimeoutMs` 设为 `900000`（15 分钟），避免较长规划被默认 3 分钟超时截断。
 
 首版只支持 12 种静态整方块，材料清单在 `packages/shared/src/build-plan.ts`。不支持空气清除、方块状态、NBT、容器、液体、重力方块、红石、命令或玩家控制。计划最多 64 个填充操作；重叠部分按最终赋值去重，执行拆成互不重叠的行批次，最多 256 批。同一点使用 `set_block`，一行使用 `fill_blocks`，按高度从低到高执行。
 
@@ -195,7 +216,7 @@ Windows：`gradlew.bat test build --no-daemon`。构建输出在 `build/libs/`�
 npm run test:java
 ```
 
-该命令下载校验 SHA-256 的 Gson 2.13.2、JUnit Console 6.0.1，然后编译游戏无关的解析、配置、协议与 WebSocket 类，运行单元测试，再连接真实 Node Gateway 做 Java 往返烟测。**该命令不覆盖 Fabric entrypoint 和 HUD。** 完整构建中的 `FabricChatEventContractTest` 则使用真实 Fabric API。
+该命令下载校验 SHA-256 的 Gson 2.13.2、JUnit Console 6.0.1，然后编译游戏无关的解析、配置、协议与 WebSocket 类，运行 6 项单元测试和 3 项实际 WebSocket 检查：认证往返、Gateway 重启重连及 12 条连续指令、注册无响应超时。**该命令不覆盖 Fabric entrypoint 和 HUD。** 完整构建中的 `FabricChatEventContractTest` 则使用真实 Fabric API。
 
 将 Mod 放入对应客户端 `mods/`，启动 Gateway 后生成客户端配置：
 
@@ -208,7 +229,7 @@ npm run companion:config -- /path/to/.minecraft/config/minecraft-codex.json
 
 Windows 示例：`npm run companion:config -- 'C:\Users\你的用户名\AppData\Roaming\.minecraft\config\minecraft-codex.json'`。目标是游戏实例的实际配置目录，启动器自定义实例可能不在此处。
 
-进入世界时 Mod 读取配置，建立认证 WebSocket 并注册随机会话 ID。最多连续尝试 5 次，退避上限 8 秒。失败后检查配置并重新进入世界。未连接时仍拦截 Codex 指令，在本地告知未提交，不会广播给服务器。网络回调只产生文字通知，HUD 更新由 Minecraft client thread 执行。断线不自动重发任务。
+进入世界时 Mod 读取配置，建立认证 WebSocket 并注册随机会话 ID。连接与注册各有 5 秒超时，最多连续尝试 5 次，退避上限 8 秒；注册成功后重置连续失败次数。失败后检查配置并重新进入世界。未连接时仍拦截 Codex 指令，在本地告知未提交，不会广播给服务器。网络回调只产生文字通知，HUD 更新由 Minecraft client thread 执行。文本帧串行发送，最多积压 16 条；超限明确提示未提交。断线、换世界或关闭后不会重发已提交或积压的指令，旧连接的回调也不会进入新会话。
 
 ## 自动化检查
 
@@ -216,7 +237,10 @@ Windows 示例：`npm run companion:config -- 'C:\Users\你的用户名\AppData\
 npm test
 npm run smoke
 npm run test:java
+npm run smoke:stability
 ```
+
+`smoke:stability` 使用两个独立的 Gateway CLI 进程与模拟 app-server：等待建筑审批后强制终止第一个进程，再以相同 dataDir 启动，验证历史 `INTERRUPTED`、旧审批被拒绝、无任务重放且零写入；不调用模型或连接 Minecraft。Phase 4 全部证据和待验收项目见 [稳定性报告](PHASE4_REPORT.md)。
 
 真实 Codex 可选检查：
 

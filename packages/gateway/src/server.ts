@@ -7,11 +7,13 @@ import type { Backend } from "./backend.js";
 import { authenticated } from "./config.js";
 import type { GatewayConfig } from "./config.js";
 import { TaskManager } from "./task-manager.js";
+import { TaskHistory } from "./task-history.js";
 
-const commands = "@codex <任务>；!codex status；!codex queue；!codex stop [task-id]；!codex approve [task-id]；!codex reject [task-id]；!codex help。";
+const commands = "@codex <任务>；!codex status；!codex queue；!codex history [1-50]；!codex stop [task-id]；!codex approve [task-id]；!codex reject [task-id]；!codex help。";
 
 export async function startGateway(config: GatewayConfig, token: string, backend: Backend) {
   const mode = config.building.enabled ? "build" : config.world.enabled ? "observe" : "chat";
+  const history = new TaskHistory(config.dataDir, config.history);
   const help = commands + (mode === "build" ? "当前建造需逐任务确认：!codex approve [task-id] / !codex reject [task-id]；省略 task-id 时作用于当前待审批任务。" : (mode === "observe" ? "当前为只读世界观察，" : "当前仅支持聊天，") + "建造与 approve/reject 尚未开放。");
   let socket: WebSocket | undefined;
   let world: string | undefined;
@@ -37,7 +39,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
     else publish("task.status", { task });
   }, (task, text) => {
     if (task.worldSessionId === world) publish("chat.message", { taskId: task.id, text });
-  });
+  }, task => history.record(task));
 
   const http = createServer((req, res) => {
     if (!authenticated(req.headers.authorization, token) || req.headers.origin) {
@@ -45,12 +47,13 @@ export async function startGateway(config: GatewayConfig, token: string, backend
     }
     if (req.method === "GET" && req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-      res.end(JSON.stringify({ ok: true, backend: backend.kind, mode, writesEnabled: config.building.enabled }));
+      res.end(JSON.stringify({ ok: true, backend: backend.kind, mode, writesEnabled: config.building.enabled, history: history.status() }));
     } else res.writeHead(404).end();
   });
   const ws = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES, perMessageDeflate: false });
   http.on("upgrade", (req, netSocket, head) => {
-    const allowedHost = req.headers.host === `127.0.0.1:${(http.address() as AddressInfo).port}`;
+    const address = http.address();
+    const allowedHost = address && typeof address === "object" && req.headers.host === `127.0.0.1:${address.port}`;
     let status: number | undefined;
     if (stopping) status = 503;
     else if (!authenticated(req.headers.authorization, token)) status = 401;
@@ -131,6 +134,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
           reply("task.status", { task });
         } else {
           switch (command.kind) {
+            case "history": reply("chat.message", { text: history.describe(command.limit) }); break;
             case "help": reply("chat.message", { text: help }); break;
             case "status": {
               const active = manager.current(clientWorld);
@@ -179,15 +183,20 @@ export async function startGateway(config: GatewayConfig, token: string, backend
     http.listen(config.port, config.host, () => { http.off("error", reject); resolve(); });
   });
   const port = (http.address() as AddressInfo).port;
-  return {
-    port, url: `ws://127.0.0.1:${port}/ws`, manager,
-    async close() {
-      stopping = true;
-      socket?.terminate();
-      await lifecycle;
-      await manager.close();
+  let closePromise: Promise<void> | undefined;
+  async function shutdown() {
+    stopping = true;
+    const httpClosed = new Promise<void>((resolve, reject) => http.close(error => error ? reject(error) : resolve()));
+    http.closeAllConnections();
+    socket?.terminate();
+    try { await lifecycle; await manager.close(); }
+    finally {
       await new Promise<void>(resolve => ws.close(() => resolve()));
-      await new Promise<void>((resolve, reject) => http.close(error => error ? reject(error) : resolve()));
-    },
+      await httpClosed;
+    }
+  }
+  return {
+    port, url: `ws://127.0.0.1:${port}/ws`, manager, history,
+    close() { return closePromise ??= shutdown(); },
   };
 }

@@ -60,6 +60,7 @@ export function envelope<K extends string, P>(type: K, payload: P): { protocolVe
 export type ChatCommand =
   | { kind: "task"; text: string }
   | { kind: "status" | "queue" | "help" }
+  | { kind: "history"; limit: number }
   | { kind: "stop"; taskId?: string }
   | { kind: "approve" | "reject"; taskId?: string };
 
@@ -73,6 +74,10 @@ export function parseChatCommand(text: string): ChatCommand {
   if (!control) throw new Error("指令必须以 @codex 或 !codex 开头");
   const [verb = "help", ...args] = (control[1] ?? "").trim().split(/\s+/);
   switch (verb.toLowerCase()) {
+    case "history": {
+      if (args.length > 1 || (args[0] && !/^(?:[1-9]|[1-4][0-9]|50)$/.test(args[0]))) throw new Error("用法：!codex history [1-50]");
+      return { kind: "history", limit: args[0] ? Number(args[0]) : 10 };
+    }
     case "status": case "queue": case "help":
       if (args.length) throw new Error("该命令不接受参数");
       return { kind: verb.toLowerCase() as "status" | "queue" | "help" };

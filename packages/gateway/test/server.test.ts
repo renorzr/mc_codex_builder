@@ -9,11 +9,11 @@ import { connect, rejected, until } from "./helpers.js";
 
 const token = "local-test-token-" + "x".repeat(32);
 test("requires bearer auth, rejects browser origins, and reserves one companion", async t => {
-  const gateway = await startGateway(configSchema.parse({ port: 0 }), token, new MockBackend());
+  const gateway = await startGateway(configSchema.parse({ history: { enabled: false }, port: 0 }), token, new MockBackend());
   t.after(() => gateway.close());
   assert.equal((await fetch(`http://127.0.0.1:${gateway.port}/health`)).status, 401);
   const health = await fetch(`http://127.0.0.1:${gateway.port}/health`, { headers: { Authorization: "Bearer " + token } });
-  assert.deepEqual(await health.json(), { ok: true, backend: "mock", mode: "chat", writesEnabled: false });
+  assert.deepEqual(await health.json(), { ok: true, backend: "mock", mode: "chat", writesEnabled: false, history: { enabled: false, healthy: true, recovered: 0, retainedEntries: 0 } });
   await rejected(gateway.url, "wrong-token", 401);
   await rejected(gateway.url, token, 403, { Origin: "http://evil.example" });
   const client = await connect(gateway.url, token);
@@ -22,7 +22,7 @@ test("requires bearer auth, rejects browser origins, and reserves one companion"
 });
 
 test("bad frames do not crash server; identical command retries create exactly one task", async t => {
-  const gateway = await startGateway(configSchema.parse({ port: 0 }), token, new MockBackend());
+  const gateway = await startGateway(configSchema.parse({ history: { enabled: false }, port: 0 }), token, new MockBackend());
   t.after(() => gateway.close());
   const client = await connect(gateway.url, token);
   t.after(() => client.socket.terminate());
@@ -46,7 +46,7 @@ test("bad frames do not crash server; identical command retries create exactly o
 });
 
 test("world change cancels active and queued work, rejects stale messages, starts fresh", async t => {
-  const gateway = await startGateway(configSchema.parse({ port: 0 }), token, new MockBackend(1000));
+  const gateway = await startGateway(configSchema.parse({ history: { enabled: false }, port: 0 }), token, new MockBackend(1000));
   t.after(() => gateway.close());
   const client = await connect(gateway.url, token);
   t.after(() => client.socket.terminate());
@@ -65,7 +65,7 @@ test("world change cancels active and queued work, rejects stale messages, start
 });
 
 test("stops running and queued tasks; disconnect cancels work and permits reconnect", async t => {
-  const gateway = await startGateway(configSchema.parse({ port: 0 }), token, new MockBackend(1000));
+  const gateway = await startGateway(configSchema.parse({ history: { enabled: false }, port: 0 }), token, new MockBackend(1000));
   t.after(() => gateway.close());
   const client = await connect(gateway.url, token);
   const world = randomUUID();
@@ -87,7 +87,7 @@ test("stops running and queued tasks; disconnect cancels work and permits reconn
 });
 
 test("queue limit and unimplemented approvals return explicit errors", async t => {
-  const gateway = await startGateway(configSchema.parse({ port: 0, maxTasks: 1 }), token, new MockBackend(1000));
+  const gateway = await startGateway(configSchema.parse({ history: { enabled: false }, port: 0, maxTasks: 1 }), token, new MockBackend(1000));
   t.after(() => gateway.close());
   const client = await connect(gateway.url, token);
   t.after(() => client.socket.terminate());

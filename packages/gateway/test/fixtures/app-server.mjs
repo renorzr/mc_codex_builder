@@ -1,7 +1,8 @@
 import readline from "node:readline";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 const logFile = process.argv[2];
 const scenario = process.argv[3] ?? "good";
+if (logFile) writeFileSync(logFile + ".pid", String(process.pid));
 const reads = ["get_status", "list_capabilities", "get_self", "get_block", "get_blocks_region", "find_blocks", "screenshot", "describe_scene"];
 const executionTools = ["get_status", "get_self", "get_screen", "get_block", "get_blocks_region", "screenshot", "set_block", "fill_blocks"];
 const building = scenario.startsWith("build-");
@@ -25,10 +26,12 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
   const message = JSON.parse(line);
   if (logFile) appendFileSync(logFile, JSON.stringify(message) + "\n");
   const { id, method, params } = message;
+  if ((scenario === "hang-initialize" && method === "initialize") || (scenario === "hang-config" && method === "config/read") || (scenario === "hang-thread" && method === "thread/start") || (scenario === "hang-resume" && method === "thread/resume")) continue;
+  if (scenario === "reject-resume" && method === "thread/resume") { send({ id, error: { code: -32600, message: "Thread not found" } }); continue; }
   if (method === "initialize") reply(id, { userAgent: "fixture", codexHome: "/fixture" });
   else if (method === "config/read") reply(id, { config: { mcp_servers: { dangerous: { enabled: true } } } });
   else if (method === "thread/start") { thread = "fixture-thread-" + ++threads; reply(id, { thread: { id: thread } }); }
-  else if (method === "thread/resume") { thread = params.threadId; reply(id, { thread: { id: thread } }); }
+  else if (method === "thread/resume") { thread = params.threadId; threads = Math.max(threads, Number(thread.split("-").at(-1)) || 0); reply(id, { thread: { id: thread } }); }
   else if (method === "mcpServerStatus/list") {
     const names = params.serverName === "mccodex_execute" ? executionTools : reads;
     const tools = Object.fromEntries(names.filter(name => scenario !== "missing-tool" || name !== "screenshot").map(name => [name, { name, annotations: { readOnlyHint: !["set_block", "fill_blocks"].includes(name), destructiveHint: ["set_block", "fill_blocks"].includes(name) } }]));

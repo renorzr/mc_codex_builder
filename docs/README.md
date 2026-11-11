@@ -4,6 +4,8 @@ Minecraft Java Edition AI 建造助手。最终目标是在 Windows 游戏聊天
 
 **Phase 1 聊天、Phase 2 只读观察和 Phase 3 小型建筑闭环均已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内人工验收。** 仍不开放任意命令、NBT、危险方块或无限范围建造，不能把有限建造能力视为任意世界操作权限。
 
+Phase 4 已补充任务历史、启动取消、旧审批失效和断线重连验证；本阶段通过 Linux 无游戏检查，Windows 游戏内稳定性验收尚待完成，见 [Phase 4 报告](PHASE4_REPORT.md)。
+
 ## 无游戏启动
 
 需要 Node.js ≥22.16；Java 部分需要 JDK 21。以下命令均从仓库根目录执行。
@@ -25,6 +27,7 @@ npm run chat
 @codex 你好
 !codex status
 !codex queue
+!codex history 10
 !codex stop
 !codex help
 ```
@@ -85,6 +88,7 @@ npm run smoke:observe     # 真实 app-server + MCP 模拟世界；不发起模�
 npm run smoke:observe -- --model # 可选：模型实际读取模拟世界与图片
 npm run smoke:build       # Gateway + 模拟协议后端，确认前后写入验证
 npm run smoke:build -- --model # 可选：真实模型 + MCP 模拟世界，使用账户额度
+npm run smoke:stability   # 强制终止并重启独立 Gateway；历史保留，旧审批失效，无任务重放
 ```
 
 构建 Companion Mod，无需运行游戏，但需要下载 Gradle、Fabric 和 Minecraft 编译依赖：
@@ -103,6 +107,7 @@ Windows 使用 `gradlew.bat test build --no-daemon`。游戏目录中的 `config
 - [Phase 1 本机开发报告](PHASE1_REPORT.md)：本次实现和实际验证记录。
 - [Phase 2 只读观察报告](PHASE2_REPORT.md)：读取接入、权限限制、无游戏与游戏内验证。
 - [Phase 3 建造报告](PHASE3_REPORT.md)：具体计划审批、固定执行器、模拟验证与真实游戏验收。
+- [Phase 4 稳定性报告](PHASE4_REPORT.md)：任务历史、崩溃恢复边界、启动取消与 Java 重连。
 - [MVP 技术设计](MVP_DESIGN.md)、[Phase 0 历史验证报告](PHASE0_REPORT.md)。
 - `packages/gateway`：Node.js/TypeScript Gateway、mock/真实 Codex 后端、终端客户端。
 - `packages/shared`：协议校验、任务类型、命令解析。

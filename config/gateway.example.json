@@ -5,6 +5,12 @@
   "dataDir": ".local",
   "maxTasks": 100,
   "heartbeatMs": 15000,
+  "history": {
+    "enabled": true,
+    "maxBytes": 1048576,
+    "maxFiles": 3,
+    "maxEntries": 200
+  },
   "world": {
     "enabled": false
   },

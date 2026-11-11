@@ -20,3 +20,9 @@ test("wire contract rejects wrong version, oversized text and extra fields", () 
   assert.equal(clientMessageSchema.safeParse({ ...message, payload: { ...message.payload, token: "secret" } }).success, false);
   assert.equal(clientMessageSchema.safeParse({ ...message, payload: { ...message.payload, text: "x".repeat(8001) } }).success, false);
 });
+
+test("history is a bounded control command", () => {
+  assert.deepEqual(parseChatCommand("!codex history"), { kind: "history", limit: 10 });
+  assert.deepEqual(parseChatCommand("!codex history 50"), { kind: "history", limit: 50 });
+  for (const input of ["0", "51", "-1", "1.5", "01", "10 more"]) assert.throws(() => parseChatCommand("!codex history " + input));
+});

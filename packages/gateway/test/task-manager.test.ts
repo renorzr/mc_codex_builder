@@ -46,3 +46,32 @@ test("a failed task does not stall the queue and completed history is bounded", 
   assert.equal(manager.list("world").length, 2);
   assert.throws(() => manager.submit("stale", "bad"));
 });
+
+test("closing during disconnect waits for the already-running cancellation cleanup", async t => {
+  const events: string[] = [];
+  let finishRun: (() => void) | undefined;
+  const backend: Backend = {
+    kind: "mock",
+    async run(_world, _text, signal) {
+      await new Promise<void>(resolve => {
+        signal.addEventListener("abort", () => { events.push("abort"); finishRun = resolve; }, { once: true });
+        events.push("start");
+      });
+      events.push("finished");
+      return "done";
+    },
+    async reset() {}, async close() { events.push("closed"); },
+  };
+  const manager = new TaskManager(backend, 10, () => {}, () => {});
+  t.after(async () => { finishRun?.(); await manager.close(); });
+  await manager.setWorld("world");
+  manager.submit("world", "task");
+  await until(() => events.includes("start"));
+  const disconnected = manager.setWorld(undefined);
+  const closing = manager.close();
+  await delay(10);
+  assert.deepEqual(events, ["start", "abort"]);
+  finishRun!();
+  await Promise.all([disconnected, closing]);
+  assert.deepEqual(events, ["start", "abort", "finished", "closed"]);
+});

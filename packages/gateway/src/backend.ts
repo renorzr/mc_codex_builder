@@ -8,6 +8,7 @@ export interface Backend {
   run(worldSessionId: string, text: string, signal: AbortSignal, report: (text: string) => void): Promise<string | BuildProposal>;
   executeBuild?(worldSessionId: string, proposal: BuildProposal, signal: AbortSignal, report: (text: string) => void, stage: (stage: "BUILDING" | "VERIFYING") => void): Promise<string>;
   discardBuild?(proposal: BuildProposal): void;
+  onUnavailable?(listener: (error: Error) => void): () => void;
   reset(worldSessionId: string): Promise<void>;
   close(): Promise<void>;
 }

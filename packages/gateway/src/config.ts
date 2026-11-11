@@ -10,6 +10,12 @@ export const configSchema = z.object({
   dataDir: z.string().min(1).default(".local"),
   maxTasks: z.number().int().min(1).max(10000).default(100),
   heartbeatMs: z.number().int().min(100).max(60000).default(15000),
+  history: z.object({
+    enabled: z.boolean().default(true),
+    maxBytes: z.number().int().min(4096).max(4 * 1024 * 1024).default(1024 * 1024),
+    maxFiles: z.number().int().min(1).max(5).default(3),
+    maxEntries: z.number().int().min(1).max(2000).default(200),
+  }).strict().default({ enabled: true, maxBytes: 1024 * 1024, maxFiles: 3, maxEntries: 200 }),
   building: z.object({
     enabled: z.boolean().default(false),
     maxBlocks: z.number().int().min(1).max(4096).default(2048),

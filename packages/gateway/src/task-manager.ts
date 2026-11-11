@@ -4,7 +4,7 @@ import type { TaskSnapshot } from "@mccodex/shared";
 import type { Backend, BuildProposal } from "./backend.js";
 
 const terminal = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
-type Task = TaskSnapshot & { controller: AbortController; approval?: { accept: () => void }; executionStarted?: boolean };
+type Task = TaskSnapshot & { controller: AbortController; approval?: { accept: () => void; fail: (error: Error) => void }; executionStarted?: boolean };
 
 export class TaskManager {
   private tasks = new Map<string, Task>();
@@ -12,10 +12,16 @@ export class TaskManager {
   private active?: Task;
   private draining?: Promise<void>;
   private closed = false;
+  private readonly unsubscribe?: () => void;
 
   constructor(private readonly backend: Backend, private readonly maxTasks: number,
     private readonly publish: (task: TaskSnapshot) => void,
-    private readonly report: (task: TaskSnapshot, text: string) => void) {}
+    private readonly report: (task: TaskSnapshot, text: string) => void,
+    private readonly record: (task: TaskSnapshot) => void = () => {}) {
+    this.unsubscribe = backend.onUnavailable?.(error => {
+      if (this.active?.status === "AWAITING_APPROVAL") this.active.approval?.fail(error);
+    });
+  }
 
   async setWorld(worldSessionId?: string) {
     if (this.world === worldSessionId) return;
@@ -38,6 +44,7 @@ export class TaskManager {
     const now = new Date().toISOString();
     const task: Task = { id: "task-" + randomUUID(), worldSessionId, text, status: "QUEUED", createdAt: now, updatedAt: now, controller: new AbortController() };
     this.tasks.set(task.id, task);
+    this.record(this.snapshot(task));
     // Start after the command ack has been sent.
     queueMicrotask(() => this.pump());
     return this.snapshot(task);
@@ -147,7 +154,7 @@ export class TaskManager {
         timer = setTimeout(() => { cleanup(); reject(new Error("建筑审批已过期，请重新提交任务")); }, Math.max(0, Date.parse(proposal.summary.expiresAt) - Date.now()));
       }
       const cleanup = () => { if (timer) clearTimeout(timer); task.controller.signal.removeEventListener("abort", abort); task.approval = undefined; };
-      task.approval = { accept: () => { cleanup(); this.update(task, "BUILDING"); resolve(); } };
+      task.approval = { accept: () => { cleanup(); this.update(task, "BUILDING"); resolve(); }, fail: error => { cleanup(); reject(error); } };
       task.controller.signal.addEventListener("abort", abort, { once: true });
       this.update(task, "AWAITING_APPROVAL");
       this.report(this.snapshot(task), describeBuild(proposal.summary, task.id));
@@ -158,6 +165,7 @@ export class TaskManager {
   private update(task: Task, status: TaskSnapshot["status"]) {
     task.status = status;
     task.updatedAt = new Date().toISOString();
+    this.record(this.snapshot(task));
     this.publish(this.snapshot(task));
   }
 
@@ -165,7 +173,12 @@ export class TaskManager {
 
   async close() {
     this.closed = true;
-    await this.setWorld(undefined);
-    await this.backend.close();
+    try {
+      await this.setWorld(undefined);
+      // A concurrent disconnect may already have cleared world while cancellation still drains.
+      await this.draining;
+    } finally {
+      try { await this.backend.close(); } finally { this.unsubscribe?.(); }
+    }
   }
 }
