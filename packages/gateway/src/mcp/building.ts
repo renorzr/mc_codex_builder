@@ -30,6 +30,7 @@ interface RollbackRecord {
 
 export const buildingInstructions = `\n当前显式开启了小型建筑规划。你仍然只有读取工具，绝不能自行执行任何写入。
 只有用户明确要求建造时才生成 plan；纯聊天或观察任务的 plan 必须为 null，并在 message 中正常回复。
+模型响应必须始终包含 plan 字段（无计划时为 null）；有 plan 时必须始终包含 commands 数组，没有命令时使用 []。
 规划前优先使用 Gateway 预检的 terrain.depressions；只有摘要不足时才读取小范围精确方块。截图仅在用户要求视觉判断时使用。可以使用任意合法的 namespace:block_id（原版或模组方块），按默认方块状态放置；不允许方块状态、NBT、容器数据、命令或玩家控制。液体、重力方块和容器等结果可能不稳定，必须如实说明。
 plan 的 operations 是 from/to（含端点）的填充操作；用同一点表示单方块。只规划当前玩家附近、上限内的主世界建筑。
 是否覆盖非空气方块由 Gateway 的 allowOverwrite 配置决定；不要自行假设禁止覆盖。若允许覆盖，审批摘要会显示覆盖数量，最终仍以用户 approve 为准。

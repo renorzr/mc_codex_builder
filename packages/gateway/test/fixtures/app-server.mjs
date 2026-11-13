@@ -89,9 +89,9 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     if (text === "malformed") { process.stdout.write("{bad-json\n"); continue; }
     if (text === "hang") continue;
     const finish = () => {
-      const plan = { name: "模拟石砖柱", dimension: "minecraft:overworld", operations: [{ from: { x: 12, y: 65, z: 20 }, to: { x: 13, y: 66, z: 20 }, blockId: "minecraft:stone_bricks" }] };
+      const plan = { name: "模拟石砖柱", dimension: "minecraft:overworld", commands: [], operations: [{ from: { x: 12, y: 65, z: 20 }, to: { x: 13, y: 66, z: 20 }, blockId: "minecraft:stone_bricks" }] };
       if (scenario === "build-command" || scenario === "build-command-error") plan.commands = ["clone 0 64 0 1 64 0 20 64 20"];
-      const response = params.outputSchema ? JSON.stringify(scenario === "build-no-plan" ? { message: "没有生成计划：当前材料无法满足请求。" } : params.outputSchema.properties.plan ? { message: "待审批的模拟计划", plan } : { message: "模拟截图已收到，不能视作真实游戏视觉验收。" }) : "fixture: " + text;
+      const response = params.outputSchema ? JSON.stringify(scenario === "build-no-plan" ? { message: "没有生成计划：当前材料无法满足请求。", plan: null } : params.outputSchema.properties.plan ? { message: "待审批的模拟计划", plan } : { message: "模拟截图已收到，不能视作真实游戏视觉验收。" }) : "fixture: " + text;
       notify("item/completed", { threadId: thread, turnId: turn, item: { id: "reply-" + turn, type: "agentMessage", text: response, phase: "final_answer" } });
       completed(turn);
     };

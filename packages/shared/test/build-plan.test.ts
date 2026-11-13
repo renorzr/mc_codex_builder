@@ -16,7 +16,8 @@ test("counts unique final target cells and groups disjoint final assignments", (
   assert.equal(rows[1]?.blockId, "minecraft:glass");
 });
 test("accepts message-only responses and any namespaced block id", () => {
-  assert.equal(buildResponseSchema.parse({ message: "没有生成计划" }).plan, undefined);
+  assert.equal(buildResponseSchema.parse({ message: "没有生成计划", plan: null }).plan, null);
+  assert.throws(() => buildResponseSchema.parse({ message: "缺少 plan" }));
   for (const blockId of ["minecraft:sea_lantern", "minecraft:chest", "minecraft:sand", "minecraft:water", "mymod:custom_block"]) {
     const compiled = compileBuildPlan({ ...plan, operations: [{ ...plan.operations[0], blockId }] }, player, limits);
     assert.equal(compiled.cells[0]?.blockId, blockId);

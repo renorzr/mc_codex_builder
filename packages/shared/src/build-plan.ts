@@ -13,7 +13,8 @@ export const buildPlanSchema = z.object({
   commands: z.array(buildCommandSchema).max(16).optional(),
   operations: z.array(z.object({ from: blockPositionSchema, to: blockPositionSchema, blockId: blockIdSchema }).strict()).min(1).max(64),
 }).strict();
-export const buildResponseSchema = z.object({ message: z.string().max(2000), plan: buildPlanSchema.nullable().optional() }).strict();
+const modelBuildPlanSchema = buildPlanSchema.extend({ commands: z.array(buildCommandSchema).max(16) });
+export const buildResponseSchema = z.object({ message: z.string().max(2000), plan: modelBuildPlanSchema.nullable() }).strict();
 export type BuildPlan = z.infer<typeof buildPlanSchema>;
 export type BlockPosition = z.infer<typeof blockPositionSchema>;
 export interface BuildLimits { maxBlocks: number; maxDistance: number; allowOverwrite: boolean; blockedCommands?: readonly string[] }
