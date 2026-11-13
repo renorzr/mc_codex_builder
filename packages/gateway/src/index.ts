@@ -7,7 +7,10 @@ import { startGateway } from "./server.js";
 try {
   const config = await loadConfig();
   const token = await loadToken(config.dataDir);
-  const backend = config.backend === "codex" ? new CodexBackend(config) : new MockBackend();
+  const backend = config.backend === "codex" ? new CodexBackend(config, text => {
+    const time = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    console.log(`[codex ${time}] ${text}`);
+  }) : new MockBackend();
   const gateway = await startGateway(config, token, backend);
   console.log(JSON.stringify({ ready: true, url: gateway.url, backend: backend.kind, mode: config.building.enabled ? "build" : config.world.enabled ? "observe" : "chat", writesEnabled: config.building.enabled,
     tokenSource: process.env.GATEWAY_TOKEN ? "GATEWAY_TOKEN" : path.resolve(config.dataDir, "gateway-token") }));

@@ -1,22 +1,28 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
-// Full static cubes only: no commands, NBT, block entities, gravity, liquids or redstone.
-export const BUILD_MATERIALS = ["minecraft:stone", "minecraft:stone_bricks", "minecraft:cobblestone", "minecraft:oak_planks", "minecraft:glass", "minecraft:white_concrete", "minecraft:blue_concrete", "minecraft:bricks", "minecraft:sandstone", "minecraft:quartz_block", "minecraft:smooth_stone", "minecraft:polished_andesite"] as const;
+// Any namespaced block id is allowed; state/NBT/command syntax is intentionally rejected.
+export const MAX_BUILD_READ_VOLUME = 4096;
+export const blockIdSchema = z.string().min(1).max(256).regex(/^[a-z0-9_.-]+:[a-z0-9_.\/-]+$/);
+export const buildCommandSchema = z.string().min(1).max(1024)
+  .regex(/^[^\r\n\0{}]+$/, "命令必须是单行且不能包含 NBT/命令数据")
+  .regex(/\S/, "命令不能为空");
 export const blockPositionSchema = z.object({ x: z.number().int().min(-29999984).max(29999984), y: z.number().int().min(-64).max(319), z: z.number().int().min(-29999984).max(29999984) }).strict();
 export const buildPlanSchema = z.object({
   name: z.string().min(1).max(80), dimension: z.literal("minecraft:overworld"),
-  operations: z.array(z.object({ from: blockPositionSchema, to: blockPositionSchema, blockId: z.enum(BUILD_MATERIALS) }).strict()).min(1).max(64),
+  commands: z.array(buildCommandSchema).max(16).optional(),
+  operations: z.array(z.object({ from: blockPositionSchema, to: blockPositionSchema, blockId: blockIdSchema }).strict()).min(1).max(64),
 }).strict();
-export const buildResponseSchema = z.object({ message: z.string().max(2000), plan: buildPlanSchema.nullable() }).strict();
+export const buildResponseSchema = z.object({ message: z.string().max(2000), plan: buildPlanSchema.nullable().optional() }).strict();
 export type BuildPlan = z.infer<typeof buildPlanSchema>;
 export type BlockPosition = z.infer<typeof blockPositionSchema>;
-export interface BuildLimits { maxBlocks: number; maxDistance: number; allowOverwrite: boolean }
+export interface BuildLimits { maxBlocks: number; maxDistance: number; allowOverwrite: boolean; blockedCommands?: readonly string[] }
 export interface BuildSummary {
   name: string; dimension: string; worldId: string;
   from: BlockPosition; to: BlockPosition; materials: string[];
   changedBlocks: number; overwrittenBlocks: number; operationCount: number;
   fingerprint: string; expiresAt?: string; planFile: string;
+  commands: string[];
   operations: BuildPlan["operations"];
 }
 export const positionKey = ({ x, y, z }: BlockPosition) => `${x},${y},${z}`;
@@ -32,6 +38,14 @@ export function positions(from: BlockPosition, to: BlockPosition): BlockPosition
 
 export function compileBuildPlan(raw: unknown, player: BlockPosition, limits: BuildLimits) {
   const plan = buildPlanSchema.parse(raw);
+  const commands = (plan.commands ?? []).map(command => command.trim().replace(/^\//, "").trim());
+  if (commands.length && !limits.allowOverwrite) throw new Error("包含命令的计划需要 allowOverwrite=true，以便明确允许命令改动已有方块");
+  const blockedCommands = new Set((limits.blockedCommands ?? []).map(command => command.toLowerCase()));
+  for (const command of commands) {
+    const root = command.split(/\s+/, 1)[0]!.toLowerCase();
+    if (blockedCommands.has(root)) throw new Error(`命令 /${root} 在 Gateway 黑名单中`);
+  }
+  const normalizedPlan = { ...plan, commands };
   const targets = new Map<string, BlockPosition & { blockId: string }>();
   for (const operation of plan.operations) {
     if (volume(operation.from, operation.to) > limits.maxBlocks) throw new Error("单项操作超过方块上限，请缩小建筑");
@@ -44,8 +58,8 @@ export function compileBuildPlan(raw: unknown, player: BlockPosition, limits: Bu
   const cells = [...targets.values()].sort((a, b) => a.y - b.y || a.z - b.z || a.x - b.x);
   const from = { x: Math.min(...cells.map(p => p.x)), y: Math.min(...cells.map(p => p.y)), z: Math.min(...cells.map(p => p.z)) };
   const to = { x: Math.max(...cells.map(p => p.x)), y: Math.max(...cells.map(p => p.y)), z: Math.max(...cells.map(p => p.z)) };
-  if (volume(from, to) > limits.maxBlocks) throw new Error("建筑包围区域过大，无法完整读取验证");
-  return { plan, cells, from, to };
+  if (volume(from, to) > MAX_BUILD_READ_VOLUME) throw new Error("建筑包围区域超过单次读取上限，请拆分任务");
+  return { plan: normalizedPlan, commands, cells, from, to };
 }
 
 // Convert the final assignment into disjoint rows. Overlapping model operations never cause hidden intermediate writes.
@@ -54,7 +68,7 @@ export function groupBuildRows(cells: Array<BlockPosition & { blockId: string }>
   for (const cell of [...cells].sort((a, b) => a.y - b.y || a.z - b.z || a.x - b.x)) {
     const last = rows.at(-1);
     if (last && last.blockId === cell.blockId && last.to.y === cell.y && last.to.z === cell.z && last.to.x + 1 === cell.x) last.to.x = cell.x;
-    else rows.push({ from: { x: cell.x, y: cell.y, z: cell.z }, to: { x: cell.x, y: cell.y, z: cell.z }, blockId: cell.blockId as typeof BUILD_MATERIALS[number] });
+    else rows.push({ from: { x: cell.x, y: cell.y, z: cell.z }, to: { x: cell.x, y: cell.y, z: cell.z }, blockId: cell.blockId });
   }
   if (rows.length > 256) throw new Error("执行批次数超过 256，请简化建筑或拆分任务");
   return rows;
@@ -63,5 +77,8 @@ export function groupBuildRows(cells: Array<BlockPosition & { blockId: string }>
 export function buildFingerprint(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 export function describeBuild(summary: BuildSummary, taskId: string) {
   const deadline = summary.expiresAt ? `确认截止 ${summary.expiresAt}` : "审批不过期";
-  return `建筑方案：${summary.name}\n世界：${summary.worldId}；维度：${summary.dimension}\n范围：(${Object.values(summary.from).join(", ")}) → (${Object.values(summary.to).join(", ")})\n实际将改变 ${summary.changedBlocks} 格，其中覆盖非空气 ${summary.overwrittenBlocks} 格；${summary.operationCount} 批。\n材料：${summary.materials.join(", ")}\n方案 ${summary.fingerprint.slice(0, 12)}；${deadline}\n完整操作清单：${summary.planFile}\n输入 !codex approve 执行（或 !codex approve ${taskId} 指定任务），或 !codex reject 取消。`;
+  const commandText = summary.commands.length
+    ? `\n先执行命令（${summary.commands.length} 条，命令造成的方块变化未计入下方格数）：\n${summary.commands.map((command, index) => `  ${index + 1}. /${command}`).join("\n")}`
+    : "";
+  return `建筑方案：${summary.name}\n世界：${summary.worldId}；维度：${summary.dimension}\n范围：(${Object.values(summary.from).join(", ")}) → (${Object.values(summary.to).join(", ")})\n实际将改变 ${summary.changedBlocks} 格，其中覆盖非空气 ${summary.overwrittenBlocks} 格；${summary.operationCount} 批。${commandText}\n材料：${summary.materials.join(", ")}\n方案 ${summary.fingerprint.slice(0, 12)}；${deadline}\n完整操作清单：${summary.planFile}\n输入 !codex approve 执行（或 !codex approve ${taskId} 指定任务），或 !codex reject 取消。`;
 }

@@ -8,7 +8,9 @@ test("only explicit prefixes create tasks; validates control arguments", () => {
   assert.deepEqual(parseChatCommand("!codex approve"), { kind: "approve", taskId: undefined });
   assert.deepEqual(parseChatCommand("!codex reject"), { kind: "reject", taskId: undefined });
   assert.deepEqual(parseChatCommand("!codex approve task-123"), { kind: "approve", taskId: "task-123" });
-  for (const text of ["hello", "@codextra foo", "@codex", "!codex status junk", "!codex approve a b", "!codex unknown"]) {
+  assert.deepEqual(parseChatCommand("!codex rollback"), { kind: "rollback", target: undefined });
+  assert.deepEqual(parseChatCommand("!codex rollback abc123"), { kind: "rollback", target: "abc123" });
+  for (const text of ["hello", "@codextra foo", "@codex", "!codex status junk", "!codex approve a b", "!codex rollback a b", "!codex unknown"]) {
     assert.throws(() => parseChatCommand(text));
   }
 });

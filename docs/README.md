@@ -2,7 +2,7 @@
 
 Minecraft Java Edition AI 建造助手。最终目标是在 Windows 游戏聊天框输入指令，由 Codex 观察、规划并建造。
 
-**Phase 1 聊天、Phase 2 只读观察和 Phase 3 小型建筑闭环均已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内人工验收。** 仍不开放任意命令、NBT、危险方块或无限范围建造，不能把有限建造能力视为任意世界操作权限。
+**Phase 1 聊天、Phase 2 只读观察和 Phase 3 小型建筑闭环均已完成 Windows + Minecraft 1.21.11 / Fabric 游戏内人工验收。** 仍不开放 NBT、危险方块或无限范围建造；计划内命令使用 Gateway 黑名单过滤，默认拦截管理员、停服、数据包/函数和嵌套执行入口。
 
 Phase 4 已补充任务历史、启动取消、旧审批失效和断线重连验证；本阶段通过 Linux 无游戏检查，Windows 游戏内稳定性验收尚待完成，见 [Phase 4 报告](PHASE4_REPORT.md)。
 
@@ -65,7 +65,7 @@ npm run dev
 
 ## 小型建筑与审批（Phase 3）
 
-使用 `config/gateway.build.example.json` 配置入口文件并显式开启 `building.enabled`，完成游戏端能力配置后启动 Gateway。默认只允许附近主世界空地上的静态整方块建筑，最多改变 2048 格，不覆盖非空气方块。
+使用 `config/gateway.build.example.json` 配置入口文件并显式开启 `building.enabled`，完成游戏端能力配置后启动 Gateway。默认允许附近主世界的任意合法方块 ID（使用默认方块状态），最多改变 2048 格。结构化计划可先执行未被黑名单拦截的命令（如 `clone`），再执行方块摆放或替换。
 
 ```text
 @codex 在我前方空地上方建一个 5×5、高 6 格的石砖小塔，保留内部空气。
@@ -75,7 +75,7 @@ npm run dev
 # 需要指定任务时：!codex approve <task-id>
 ```
 
-模型只生成计划。Gateway 显示坐标、材料和实际改变数量，等待明确确认后才按固定计划分批执行，逐批读回，最后检查区域和截图。拒绝、切换世界或配置的过期时间会使旧审批失效；中断不自动回滚已生效方块。详细配置与边界见 [开发说明](development.md#小型建筑与审批phase-3)。
+模型只生成计划。Gateway 显示坐标、材料和实际改变数量，等待明确确认后才按固定计划分批执行，逐批读回并最终检查区域；建造后不再额外启动视觉复核模型。拒绝、切换世界或配置的过期时间会使旧审批失效；中断不自动回滚已生效方块。详细配置与边界见 [开发说明](development.md#小型建筑与审批phase-3)。
 
 ## 验证
 

@@ -9,7 +9,7 @@ import type { GatewayConfig } from "./config.js";
 import { TaskManager } from "./task-manager.js";
 import { TaskHistory } from "./task-history.js";
 
-const commands = "@codex <任务>；!codex status；!codex queue；!codex history [1-50]；!codex stop [task-id]；!codex approve [task-id]；!codex reject [task-id]；!codex help。";
+const commands = "@codex <任务>；!codex status；!codex queue；!codex history [1-50]；!codex stop [task-id]；!codex rollback [build-id]；!codex approve [task-id]；!codex reject [task-id]；!codex help。";
 
 export async function startGateway(config: GatewayConfig, token: string, backend: Backend) {
   const mode = config.building.enabled ? "build" : config.world.enabled ? "observe" : "chat";
@@ -133,6 +133,7 @@ export async function startGateway(config: GatewayConfig, token: string, backend
           reply("command.accepted", { replyTo: message.messageId, taskId: task.id });
           reply("task.status", { task });
         } else {
+          let acceptedWithTask: string | undefined;
           switch (command.kind) {
             case "history": reply("chat.message", { text: history.describe(command.limit) }); break;
             case "help": reply("chat.message", { text: help }); break;
@@ -147,8 +148,15 @@ export async function startGateway(config: GatewayConfig, token: string, backend
             case "stop": manager.cancel(clientWorld, command.taskId); break;
             case "approve": if (!config.building.enabled) throw new Error("当前未开启建筑审批"); manager.approve(clientWorld, command.taskId); break;
             case "reject": if (!config.building.enabled) throw new Error("当前未开启建筑审批"); manager.reject(clientWorld, command.taskId); break;
+            case "rollback": {
+              if (!config.building.enabled) throw new Error("当前未开启建造模式，不能回退");
+              const task = manager.submitRollback(clientWorld, command.target);
+              acceptedWithTask = task.id;
+              reply("task.status", { task });
+              break;
+            }
           }
-          reply("command.accepted", { replyTo: message.messageId });
+          reply("command.accepted", { replyTo: message.messageId, ...(acceptedWithTask ? { taskId: acceptedWithTask } : {}) });
         }
       } catch (error) {
         reply("command.error", { replyTo: message.messageId, code: "COMMAND_REJECTED", message: error instanceof Error ? error.message : "指令失败" });

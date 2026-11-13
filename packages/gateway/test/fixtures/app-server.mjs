@@ -4,10 +4,11 @@ const logFile = process.argv[2];
 const scenario = process.argv[3] ?? "good";
 if (logFile) writeFileSync(logFile + ".pid", String(process.pid));
 const reads = ["get_status", "list_capabilities", "get_self", "get_block", "get_blocks_region", "find_blocks", "screenshot", "describe_scene"];
-const executionTools = ["get_status", "get_self", "get_screen", "get_block", "get_blocks_region", "screenshot", "set_block", "fill_blocks"];
+const executionTools = ["get_status", "get_self", "get_screen", "get_block", "get_blocks_region", "screenshot", "set_block", "fill_blocks", "run_command"];
+const snapshotTools = ["get_snapshot_summary", "get_snapshot_region", "get_snapshot_layer", "get_snapshot_block"];
 const building = scenario.startsWith("build-");
 const blocks = new Map();
-let screens = 0, regionReads = 0, writes = 0, threads = 0;
+let screens = 0, regionReads = 0, writes = 0, commandsRun = 0, threads = 0;
 const xyz = p => `${p.x},${p.y},${p.z}`;
 const cells = (from, to) => {
   const result = [];
@@ -33,8 +34,8 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
   else if (method === "thread/start") { thread = "fixture-thread-" + ++threads; reply(id, { thread: { id: thread } }); }
   else if (method === "thread/resume") { thread = params.threadId; threads = Math.max(threads, Number(thread.split("-").at(-1)) || 0); reply(id, { thread: { id: thread } }); }
   else if (method === "mcpServerStatus/list") {
-    const names = params.serverName === "mccodex_execute" ? executionTools : reads;
-    const tools = Object.fromEntries(names.filter(name => scenario !== "missing-tool" || name !== "screenshot").map(name => [name, { name, annotations: { readOnlyHint: !["set_block", "fill_blocks"].includes(name), destructiveHint: ["set_block", "fill_blocks"].includes(name) } }]));
+    const names = params.serverName === "mccodex_execute" ? executionTools : params.serverName === "mccodex_snapshot" ? snapshotTools : reads;
+    const tools = Object.fromEntries(names.filter(name => scenario !== "missing-tool" || name !== "screenshot").map(name => [name, { name, annotations: { readOnlyHint: !["set_block", "fill_blocks", "run_command"].includes(name), destructiveHint: ["set_block", "fill_blocks", "run_command"].includes(name) } }]));
     if (scenario === "unsafe-tool") tools.set_block = { name: "set_block", annotations: { readOnlyHint: false, destructiveHint: true } };
     reply(id, { data: [{ name: params.serverName, runtimeStatus: scenario === "disconnected" ? "failed" : "connected", tools, toolsError: null }], nextCursor: null });
   } else if (method === "mcpServer/tool/call") {
@@ -46,13 +47,22 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
       const lastWorldId = (scenario === "build-world-change" && screens >= 3) || (scenario === "build-mid-world-change" && screens >= 5) ? "sp:other" : "sp:test";
       reply(id, { content: [], structuredContent: { inWorld: true, lastWorldId } }); continue;
     }
+    if (params.tool === "describe_scene") {
+      const result = { untrusted: true, notice: "fixture scene", data: { eye: { x: 10, y: 66, z: 20 }, yaw: 90, pitch: 0, lookingAt: { type: "block", id: "minecraft:dirt", pos: { x: 10, y: 64, z: 20 } }, rays: [{ hit: true, id: "minecraft:dirt", distance: 2, pos: { x: 10, y: 64, z: 20 } }], entities: [] } };
+      reply(id, { content: [], structuredContent: result }); continue;
+    }
     if (params.tool === "get_blocks_region") {
       regionReads++;
-      if (scenario === "build-stale" && regionReads >= 2) blocks.set("12,65,20", "minecraft:cobblestone");
+      if (scenario === "build-stale" && regionReads >= 5) blocks.set("12,65,20", "minecraft:cobblestone");
       if (scenario === "build-readback-error" && writes > 0) blocks.set("12,65,20", "minecraft:cobblestone");
       let list = cells(params.arguments.from, params.arguments.to).map(pos => ({ ...pos, id: getBlock(pos), state: getBlock(pos) }));
       if (scenario === "build-incomplete") list.pop();
       reply(id, { content: [], structuredContent: { dimension: params.arguments.dimension, blocks: list, truncated: scenario === "build-truncated" } }); continue;
+    }
+    if (params.tool === "run_command") {
+      commandsRun++;
+      if (scenario === "build-command-error") { reply(id, { content: [], structuredContent: { success: false, output: ["fixture command failed"] } }); continue; }
+      reply(id, { content: [], structuredContent: { command: params.arguments.command, success: true, resultValue: 1, output: [] } }); continue;
     }
     if (["set_block", "fill_blocks"].includes(params.tool)) {
       writes++;
@@ -80,7 +90,8 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     if (text === "hang") continue;
     const finish = () => {
       const plan = { name: "模拟石砖柱", dimension: "minecraft:overworld", operations: [{ from: { x: 12, y: 65, z: 20 }, to: { x: 13, y: 66, z: 20 }, blockId: "minecraft:stone_bricks" }] };
-      const response = params.outputSchema ? JSON.stringify(params.outputSchema.properties.plan ? { message: "待审批的模拟计划", plan } : { message: "模拟截图已收到，不能视作真实游戏视觉验收。" }) : "fixture: " + text;
+      if (scenario === "build-command" || scenario === "build-command-error") plan.commands = ["clone 0 64 0 1 64 0 20 64 20"];
+      const response = params.outputSchema ? JSON.stringify(scenario === "build-no-plan" ? { message: "没有生成计划：当前材料无法满足请求。" } : params.outputSchema.properties.plan ? { message: "待审批的模拟计划", plan } : { message: "模拟截图已收到，不能视作真实游戏视觉验收。" }) : "fixture: " + text;
       notify("item/completed", { threadId: thread, turnId: turn, item: { id: "reply-" + turn, type: "agentMessage", text: response, phase: "final_answer" } });
       completed(turn);
     };
@@ -89,20 +100,39 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     else if (text === "slow-start") { setTimeout(() => reply(id, { turn: { id: turn } }), 100); }
     else {
       reply(id, { turn: { id: turn } });
+      if (text === "trace") {
+        notify("item/started", { threadId: thread, turnId: turn, item: { id: "cmd-1", type: "commandExecution", command: "echo trace-output", cwd: "C:\\work", status: "inProgress", exitCode: null, durationMs: null } });
+        notify("item/completed", { threadId: thread, turnId: turn, item: { id: "cmd-1", type: "commandExecution", command: "echo trace-output", cwd: "C:\\work", status: "completed", exitCode: 0, durationMs: 12 } });
+        notify("item/completed", { threadId: thread, turnId: turn, item: { id: "file-1", type: "fileChange", changes: [{ path: "C:\\work\\file.txt", kind: { type: "update", move_path: null }, diff: "" }], status: "completed" } });
+        notify("item/completed", { threadId: thread, turnId: turn, item: { id: "mcp-1", type: "mcpToolCall", server: "mccodex_observe", tool: "get_self", status: "completed", error: null, durationMs: 3 } });
+        notify("item/completed", { threadId: thread, turnId: turn, item: { id: "note-1", type: "agentMessage", text: "可见过程消息", phase: "commentary" } });
+      }
       if (text === "approval") {
         send({ id: "approval-1", method: "item/commandExecution/requestApproval", params: { threadId: thread, turnId: turn } });
         send({ id: "approval-2", method: "item/fileChange/requestApproval", params: { threadId: thread, turnId: turn } });
         send({ id: "legacy-approval", method: "execCommandApproval", params: {} });
       }
-      if (text === "world-read-failed") {
-        // A completed turn can already be buffered when the failed tool triggers process shutdown.
-        process.stdout.write([
-          { method: "item/completed", params: { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_observe", tool: "screenshot", status: "failed", error: { message: "fixture read error" } } } },
-          { method: "turn/completed", params: { threadId: thread, turn: { id: turn, status: "completed", error: null } } },
-        ].map(JSON.stringify).join("\n") + "\n");
+      if (text === "snapshot-recover" || text === "snapshot-fallback") {
+        notify("item/started", { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_snapshot", tool: "get_snapshot_region", status: "inProgress", error: null } });
+        notify("item/completed", { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_snapshot", tool: "get_snapshot_region", status: "failed", error: { message: "outside cached range" }, durationMs: 2 } });
+        if (text === "snapshot-fallback") {
+          notify("item/started", { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_observe", tool: "get_block", status: "inProgress", error: null } });
+          notify("item/completed", { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_observe", tool: "get_block", status: "completed", error: null, durationMs: 3 } });
+        }
+        notify("item/completed", { threadId: thread, turnId: turn, item: { id: "reply-" + turn, type: "agentMessage", text: text === "snapshot-fallback" ? "fixture: snapshot live fallback" : "fixture: snapshot recovered", phase: "final_answer" } });
+        completed(turn);
+      } else {
+        if (text === "snapshot-forbidden") notify("item/started", { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_snapshot", tool: "set_block", status: "inProgress" } });
+        if (text === "world-read-failed") {
+          // A completed turn can already be buffered when the failed tool triggers process shutdown.
+          process.stdout.write([
+            { method: "item/completed", params: { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_observe", tool: "screenshot", status: "failed", error: { message: "fixture read error" } } } },
+            { method: "turn/completed", params: { threadId: thread, turn: { id: turn, status: "completed", error: null } } },
+          ].map(JSON.stringify).join("\n") + "\n");
+        }
+        if (text === "forbidden-tool") notify("item/started", { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_observe", tool: "set_block", status: "inProgress" } });
+        if (text !== "slow") setTimeout(finish, 10);
       }
-      if (text === "forbidden-tool") notify("item/started", { threadId: thread, turnId: turn, item: { type: "mcpToolCall", server: "mccodex_observe", tool: "set_block", status: "inProgress" } });
-      if (text !== "slow") setTimeout(finish, 10);
     }
   } else if (method === "turn/interrupt") { reply(id, {}); completed(params.turnId, "interrupted"); }
 }

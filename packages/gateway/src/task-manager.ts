@@ -4,7 +4,7 @@ import type { TaskSnapshot } from "@mccodex/shared";
 import type { Backend, BuildProposal } from "./backend.js";
 
 const terminal = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
-type Task = TaskSnapshot & { controller: AbortController; approval?: { accept: () => void; fail: (error: Error) => void }; executionStarted?: boolean };
+type Task = TaskSnapshot & { controller: AbortController; approval?: { accept: () => void; fail: (error: Error) => void }; executionStarted?: boolean; kind?: "rollback"; rollbackTarget?: string };
 
 export class TaskManager {
   private tasks = new Map<string, Task>();
@@ -46,6 +46,22 @@ export class TaskManager {
     this.tasks.set(task.id, task);
     this.record(this.snapshot(task));
     // Start after the command ack has been sent.
+    queueMicrotask(() => this.pump());
+    return this.snapshot(task);
+  }
+
+  submitRollback(worldSessionId: string, target?: string): TaskSnapshot {
+    if (this.closed || this.world !== worldSessionId) throw new Error("世界会话已失效，请重新连接");
+    if (!this.backend.rollback) throw new Error("当前后端不支持回退");
+    while (this.tasks.size >= this.maxTasks) {
+      const completed = [...this.tasks.values()].find(task => terminal.has(task.status));
+      if (!completed) throw new Error("任务队列已满");
+      this.tasks.delete(completed.id);
+    }
+    const now = new Date().toISOString();
+    const task: Task = { id: "task-" + randomUUID(), worldSessionId, text: target ? "回退建造 " + target : "回退最近一次建造", status: "QUEUED", createdAt: now, updatedAt: now, controller: new AbortController(), kind: "rollback", rollbackTarget: target };
+    this.tasks.set(task.id, task);
+    this.record(this.snapshot(task));
     queueMicrotask(() => this.pump());
     return this.snapshot(task);
   }
@@ -108,19 +124,27 @@ export class TaskManager {
       const report = (text: string) => {
         if (!task.controller.signal.aborted && task.worldSessionId === this.world) this.report(this.snapshot(task), text);
       };
-      let result = await this.backend.run(task.worldSessionId, task.text, task.controller.signal, report);
-      if (typeof result !== "string") proposal = result;
-      if (typeof result !== "string" && !task.controller.signal.aborted) {
-        const plan = result;
-        if (!this.backend.executeBuild) throw new Error("后端不支持执行建筑计划");
-        task.build = structuredClone(plan.summary);
-        await this.awaitApproval(task, plan);
-        task.controller.signal.throwIfAborted();
+      let result: string | BuildProposal;
+      if (task.kind === "rollback") {
+        if (!this.backend.rollback) throw new Error("当前后端不支持回退");
         task.executionStarted = true;
-        result = await this.backend.executeBuild(task.worldSessionId, plan, task.controller.signal, report, stage => {
+        this.update(task, "BUILDING");
+        result = await this.backend.rollback(task.worldSessionId, task.rollbackTarget, task.controller.signal, report);
+      } else {
+        result = await this.backend.run(task.worldSessionId, task.text, task.controller.signal, report);
+        if (typeof result !== "string") proposal = result;
+        if (typeof result !== "string" && !task.controller.signal.aborted) {
+          const plan = result;
+          if (!this.backend.executeBuild) throw new Error("后端不支持执行建筑计划");
+          task.build = structuredClone(plan.summary);
+          await this.awaitApproval(task, plan);
           task.controller.signal.throwIfAborted();
-          this.update(task, stage);
-        });
+          task.executionStarted = true;
+          result = await this.backend.executeBuild(task.worldSessionId, plan, task.controller.signal, report, stage => {
+            task.controller.signal.throwIfAborted();
+            this.update(task, stage);
+          });
+        }
       }
       if (task.controller.signal.aborted) this.update(task, "CANCELLED");
       else {

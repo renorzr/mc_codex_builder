@@ -11,10 +11,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { until } from "./helpers.js";
 
 const fixture = fileURLToPath(new URL("fixtures/app-server.mjs", import.meta.url));
-async function setup(t: any, timeouts = {}, scenario = "good") {
+async function setup(t: any, timeouts = {}, scenario = "good", permissions = {}, trace = (_text: string) => {}) {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), "codex-test-"));
   const log = path.join(dataDir, "rpc.jsonl");
-  const backend = new CodexBackend(configSchema.parse({ dataDir, codex: { command: process.execPath, args: [fixture, log, scenario], requestTimeoutMs: 2000, turnTimeoutMs: 3000, ...timeouts } }));
+  const backend = new CodexBackend(configSchema.parse({ dataDir, codex: { command: process.execPath, args: [fixture, log, scenario], requestTimeoutMs: 2000, turnTimeoutMs: 3000, ...timeouts, permissions } }), trace);
   t.after(async () => { await backend.close(); await rm(dataDir, { recursive: true, force: true }); });
   return { backend, log, dataDir, messages: async () => (await readFile(log, "utf8")).trim().split("\n").map(line => JSON.parse(line) as RpcMessage) };
 }
@@ -45,7 +45,44 @@ test("adapter reuses its thread, handles early notifications, resets on world ch
   const started = requests.find(m => m.method === "thread/start")!;
   assert.equal(started.params.sandbox, "read-only");
   assert.equal(started.params.approvalPolicy, "untrusted");
+  assert.equal(started.params.config["features.shell_tool"], false);
+  assert.equal(started.params.config.web_search, "disabled");
+  assert.equal(started.params.config.model_reasoning_effort, "medium");
   assert.equal(started.params.config["mcp_servers.dangerous.enabled"], false);
+});
+
+test("opt-in permissions enable local files and network for the main thread", async t => {
+  const { backend, messages } = await setup(t, {}, "good", { localFiles: true, network: true });
+  assert.equal(await backend.run("world", "permissions", signal(), () => {}), "fixture: permissions");
+  const started = (await messages()).find(m => m.method === "thread/start")!;
+  assert.equal(started.params.sandbox, "danger-full-access");
+  assert.equal(started.params.approvalPolicy, "never");
+  assert.equal(started.params.config["features.shell_tool"], true);
+  assert.equal(started.params.config.web_search, "live");
+  assert.equal(started.params.config["sandbox_workspace_write.network_access"], true);
+  assert.match(started.params.developerInstructions, /本地文件/);
+  assert.match(started.params.developerInstructions, /网络/);
+});
+
+test("network-only permission keeps filesystem workspace-scoped", async t => {
+  const { backend, messages } = await setup(t, {}, "good", { localFiles: false, network: true });
+  await backend.run("world", "network", signal(), () => {});
+  const started = (await messages()).find(m => m.method === "thread/start")!;
+  assert.equal(started.params.sandbox, "workspace-write");
+  assert.equal(started.params.approvalPolicy, "never");
+  assert.equal(started.params.config["features.shell_tool"], true);
+  assert.equal(started.params.config.web_search, "live");
+});
+
+test("execution trace reports commands, file changes, MCP tools and visible messages", async t => {
+  const traces: string[] = [];
+  const { backend } = await setup(t, {}, "trace", {}, text => traces.push(text));
+  await backend.run("world", "trace", signal(), () => {});
+  assert.equal(traces.some(text => text.includes("命令开始") && text.includes("echo trace-output")), true);
+  assert.equal(traces.some(text => text.includes("命令完成") && text.includes("exit=0")), true);
+  assert.equal(traces.some(text => text.includes("文件修改结束") && text.includes("file.txt")), true);
+  assert.equal(traces.some(text => text.includes("MCP 工具结束") && text.includes("mccodex_observe/get_self")), true);
+  assert.equal(traces.some(text => text.includes("可见过程消息")), true);
 });
 
 test("adapter declines shell and file approvals instead of silently approving", async t => {
@@ -54,7 +91,7 @@ test("adapter declines shell and file approvals instead of silently approving", 
   const replies = (await messages()).filter(m => m.id === "approval-1" || m.id === "approval-2");
   assert.equal(replies.length, 2);
   assert.deepEqual(replies.map(m => m.result), [{ decision: "decline" }, { decision: "decline" }]);
-  assert.deepEqual((await messages()).find(m => m.id === "legacy-approval")?.result, { decision: { denied: { rejection: "Phase 1 supports chat only" } } });
+  assert.deepEqual((await messages()).find(m => m.id === "legacy-approval")?.result, { decision: { denied: { rejection: "Gateway did not request interactive approval" } } });
 });
 
 test("process crash fails the task once; next command reconnects and resumes", async t => {

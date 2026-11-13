@@ -62,7 +62,8 @@ export type ChatCommand =
   | { kind: "status" | "queue" | "help" }
   | { kind: "history"; limit: number }
   | { kind: "stop"; taskId?: string }
-  | { kind: "approve" | "reject"; taskId?: string };
+  | { kind: "approve" | "reject"; taskId?: string }
+  | { kind: "rollback"; target?: string };
 
 export function parseChatCommand(text: string): ChatCommand {
   const task = /^@codex(?:\s+(.*))?$/isu.exec(text);
@@ -84,6 +85,9 @@ export function parseChatCommand(text: string): ChatCommand {
     case "stop":
       if (args.length > 1 || (args[0] && !id.safeParse(args[0]).success)) throw new Error("用法：!codex stop [task-id]");
       return { kind: "stop", taskId: args[0] };
+    case "rollback":
+      if (args.length > 1 || (args[0] && !id.safeParse(args[0]).success)) throw new Error("用法：!codex rollback [build-id]");
+      return { kind: "rollback", target: args[0] };
     case "approve": case "reject":
       if (args.length > 1 || (args[0] && !id.safeParse(args[0]).success)) throw new Error("用法：!codex " + verb + " [task-id]");
       return { kind: verb.toLowerCase() as "approve" | "reject", taskId: args[0] };

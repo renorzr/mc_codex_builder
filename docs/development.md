@@ -41,7 +41,30 @@ Gateway 懒启动一个长期 app-server 子进程；同一活跃会话复用 Th
 
 在初始化、配置读取、Thread 创建/恢复或世界预检期间停止任务，会关闭子进程并等待退出，不再等待正常 RPC 超时。正常模型回合仍优先使用 `turn/interrupt`。Gateway 收到退出信号后停止接受连接、关闭 WebSocket 与未完成 HTTP 连接，再取消任务并清理子进程；关闭可重复调用。
 
-Phase 1 是聊天阶段：只读沙箱、`untrusted` 审批策略、关闭 shell/插件/apps/多 Agent/hooks/浏览器/电脑工具特性和已配置 MCP 服务，并拒绝收到的工具审批请求。Phase 3 另以可审阅、单次有效的固定建筑计划和读回验证开放有限写入，不能把审批成功视为任意世界操作权限。
+Phase 1 默认仍是聊天安全基线：只读沙箱、`untrusted` 审批策略、关闭 shell/插件/apps/多 Agent/hooks/浏览器/电脑工具特性和已配置 MCP 服务，并拒绝收到的工具审批请求。需要 Codex 访问本机文件和网络时，必须通过 `codex.permissions` 显式开启；开启后主线程使用 `never` 审批策略和更强的 shell 权限。Phase 3 另以可审阅、单次有效的固定建筑计划和读回验证开放有限写入，不能把审批成功视为任意世界操作权限。
+### Codex 本机文件与网络权限
+
+默认值保持最小权限；当前 Build 配置可以显式开启：
+
+```json
+{
+  "codex": {
+    "permissions": {
+      "localFiles": true,
+      "network": true
+    }
+  }
+}
+```
+
+- `localFiles: true`：启用 shell 文件工具，主线程使用 `danger-full-access`，以 `never` 审批运行。可以读写工作目录之外的本机文件，也会绕过沙箱的网络隔离。
+- `network: true`：启用 shell、实时网页搜索和联网访问；若 `localFiles` 为 false，主线程使用 `workspace-write` 并显式允许网络。
+- 两项为 false 时，主线程保持只读沙箱、`untrusted` 审批和关闭 shell/网页搜索。
+- Minecraft 世界写入仍必须经过 Gateway 的 MCP 工具、固定计划和用户审批，额外文件/网络权限不能绕过这条边界。
+- 风险：完整文件访问会把本机凭据、源码和其他数据暴露给模型；游戏文本与网络内容都可能携带提示注入。只在受控的单人测试环境中开启，完成后应关闭并重启 Gateway。
+
+Gateway 控制台会以 `[codex 时间]` 前缀输出 Codex 执行过程：app-server/Thread/Turn 生命周期、shell 命令文本与工作目录、命令状态/退出码/耗时、文件修改路径、MCP 工具名与状态，以及可见消息摘要。输出做长度限制，不转发 app-server 原始 stderr，也不输出隐藏推理链原文。启动器会打开独立 Gateway 窗口，同时把相同输出写入 `.local/launcher/gateway.log`。
+
 
 ## 配置
 
@@ -126,7 +149,7 @@ MCPFabric 游戏配置建议启用 `enableVision=true`，关闭 `enableWorldWrit
 
 只开放：`get_status`、`list_capabilities`、`get_self`、`get_block`、`get_blocks_region`、`find_blocks`、`screenshot`、`describe_scene`。MCP Server 通过 `world,player,vision,readonly` 过滤工具，Codex 再以 `enabled_tools` 限制这八项。其他全局 MCP、shell、插件等入口保持关闭。`mccodex_observe` 是保留的 MCP 名称，全局配置出现同名服务时会拒绝启动观察模式。
 
-默认模型沿用用户配置，需要支持图像工具结果。区域与截图通过真实 MCP 工具交给模型；截图不经 64 KiB 的 Companion 消息通道传输。app-server 单条 JSON-RPC 上限为 16 MiB，超过时终止连接并让任务失败。此阶段通过指引要求模型从半径不超过 8 格、返回不超过 4096 块的小区域开始；实际 RPC 扫描边界仍由上游实现约束，不是独立的建造权限机制。
+默认模型沿用用户配置，需要支持图像工具结果。区域与截图通过真实 MCP 工具交给模型；截图不经 64 KiB 的 Companion 消息通道传输。app-server 单条 JSON-RPC 上限为 16 MiB，超过时终止连接并让任务失败。Gateway 预检会在首次模型推理前保存任务开始时的截图和两个局部区域快照（近区 17×17、宽区 25×25），并注入 `terrain` 摘要（`recommended` 低洼候选、地表高度、airStartY、clearance）及快照引用。原始方块保存在 `.local/snapshots/current.json`，模型通过 `mccodex_snapshot/get_snapshot_region` 或 `get_snapshot_block` 按需读取，避免玩家移动后把实时世界误当成任务起点。首轮上下文不包含全量原始方块数组。实际 RPC 扫描边界仍由上游实现约束，不是独立的建造权限机制。
 
 工具错误或超出允许工具范围时，Gateway 停止该轮观察。退出/切换世界、断开 Gateway 或 `stop` 命令沿用已有取消流程。`worldSessionId` 仍只是客户端 nonce，不是世界写权限凭据。建造、审批、移动和命令执行未开放。
 
@@ -157,7 +180,7 @@ GATEWAY_CONFIG=.local/gateway.build.json npm run dev
 
 Windows 在 PowerShell 创建目录和复制配置后，设置 `$env:GATEWAY_CONFIG = '.local/gateway.build.json'`，执行 `npm run dev`。不要把示例里的占位入口路径直接用于正式运行。
 
-游戏端除了 Phase 2 的能力，还需 `enableWorldWrite=true`。**当前上游的 `get_screen` 被 `enablePlayerControl` 门限制；为了从 MCPFabric 核对 `sp:` 世界身份，建造模式还需要手工设置 `enablePlayerControl=true`。** Gateway 没有暴露移动、交互、导航或普通命令工具，也不会自动修改这些游戏配置。`enableCommands`、`enableUiControl`、`enableSupervisedControl` 保持关闭。仅支持一个 Minecraft 实例中的主世界单人集成世界。
+游戏端除了 Phase 2 的能力，还需 `enableWorldWrite=true`。**当前上游的 `get_screen` 被 `enablePlayerControl` 门限制；为了从 MCPFabric 核对 `sp:` 世界身份，建造模式还需要手工设置 `enablePlayerControl=true`。** Gateway 不会向模型直接暴露命令工具，只会执行结构化计划 `commands` 中、且命令根不在 `building.blockedCommands` 内的调用。默认黑名单拦截管理员、停服、数据包/函数、`execute` 和 `schedule` 等入口。`enableCommands=true` 是计划内命令所需的游戏端开关，`enableUiControl`、`enableSupervisedControl` 仍保持关闭。仅支持一个 Minecraft 实例中的主世界单人集成世界。
 
 | `building` 配置 | 默认 | 作用 |
 |---|---|---|
@@ -166,10 +189,11 @@ Windows 在 PowerShell 创建目录和复制配置后，设置 `$env:GATEWAY_CON
 | `maxDistance` | `32` | 计划中每个目标坐标距离本轮玩家位置的各轴最大偏移 |
 | `allowOverwrite` | `false` | 默认拒绝改变非空气方块；开启后仍需显示覆盖数量并逐任务确认 |
 | `approvalTimeoutMs` | `0` | `0` 表示审批不过期；仍保持单次使用、世界/计划绑定和执行前复查 |
+| `blockedCommands` | 危险命令根列表 | 结构化计划拒绝黑名单命令根；其余命令可在审批摘要中查看后执行 |
 
-`config/gateway.build.example.json` 将 `codex.turnTimeoutMs` 设为 `900000`（15 分钟），避免较长规划被默认 3 分钟超时截断。
+`config/gateway.build.example.json` 将 `codex.turnTimeoutMs` 设为 `900000`（15 分钟），避免较长规划被默认 3 分钟超时截断。`codex.reasoningEffort` 可设为 `low`、`medium` 或 `high`，覆盖用户全局 Codex 推理强度；当前本机 Build 配置使用 `low` 以降低简单回复延迟。
 
-首版只支持 12 种静态整方块，材料清单在 `packages/shared/src/build-plan.ts`。不支持空气清除、方块状态、NBT、容器、液体、重力方块、红石、命令或玩家控制。计划最多 64 个填充操作；重叠部分按最终赋值去重，执行拆成互不重叠的行批次，最多 256 批。同一点使用 `set_block`，一行使用 `fill_blocks`，按高度从低到高执行。
+建筑计划接受任意合法的 `namespace:block_id`，包括原版和模组方块，按默认方块状态放置。计划可选 `commands` 数组最多 16 条，每条命令不带前导 `/`，按数组顺序在方块操作之前执行；命令根不能命中 `blockedCommands`，包含命令的计划要求 `allowOverwrite=true`。默认黑名单包含 `execute`、`function`、`datapack`、`schedule` 等可间接执行其他命令的入口。格式校验会拒绝空格、方块状态、NBT、命令注入和非法字符；容器数据、液体、重力方块等可能出现不稳定结果，仍需用户审批并在读回验证时检查。模型无法生成计划时必须返回说明；`plan` 可省略或为 `null`，Gateway 会按普通文字结果完成，而不是误报格式错误。计划最多 64 个填充操作；重叠部分按最终赋值去重，执行拆成互不重叠的行批次，最多 256 批。同一点使用 `set_block`，一行使用 `fill_blocks`，按高度从低到高执行。
 
 用户仍在游戏或终端输入普通 `@codex`。明确的建造请求生成结构化计划；纯文字聊天和观察任务仍可返回文字。模型只持有读取工具，规划回合结束后 Gateway 才读取完整目标区、计算实际改变格数和非空气覆盖数，并发布审批摘要：
 
@@ -182,9 +206,9 @@ Windows 在 PowerShell 创建目录和复制配置后，设置 `$env:GATEWAY_CON
 
 `status` 可再次查看等待确认的摘要；`approve`/`reject` 省略 task-id 时作用于当前唯一待审批任务。完整操作清单保存在 `.local/plans/<fingerprint>.json`，供确认前查看；修改文件不会改变实际执行计划。审批只接受当前活跃任务和当前客户端会话，单次使用；即使不过期，拒绝、退出、切换世界、Gateway 重启或执行失败仍会使计划失效。配置正数 `approvalTimeoutMs` 时才启用时间过期。待审批任务占用串行队列，后续任务等待。
 
-确认后由 Gateway 的固定执行器使用独立 Thread 调用写工具；这个 Thread 从不运行模型 Turn，模型不会拿到写工具。执行前复查 `sp:` 世界 ID、玩家维度、写入能力和整个包围区的完整状态；每批再检查上下文和将写位置，写后立即读回，出错停止后续批次，不重试。所有写参数来自内存中已校验的最终计划，不接受客户端另传坐标或方块参数。
+确认后由 Gateway 的固定执行器使用独立 Thread 先按顺序调用 `run_command` 执行计划命令，再调用方块写工具；这个 Thread 从不运行模型 Turn，模型不会拿到写工具。执行前复查 `sp:` 世界 ID、玩家维度、写入能力和整个包围区的完整状态；命令全部成功后才允许进入方块写入，命令失败立即停止；每批再检查上下文和将写位置，写后立即读回，出错停止后续批次，不重试。所有写参数来自内存中已校验的最终计划，不接受客户端另传坐标或方块参数。
 
-最终检查整个包围区：目标格达到计划状态，其余格保持审批时的状态；然后获取截图，交给原只读模型会话做文字视觉检查。截图无法辨认时必须如实说明，不能用读回成功冒充视觉成功。
+最终检查整个包围区：目标格达到计划状态，其余格保持审批时的状态。建造后不再额外启动截图的模型视觉复核，避免为一次无操作截图增加一轮推理延迟。
 
 这些操作不是跨 RPC 的事务。检查与写入之间仍有间隙，其他程序、玩家操作或世界切换可同时发生；不支持多 Minecraft 实例，并不保证任意并发修改情况下零竞态。中断、超时或断线后可能已有部分方块生效，Gateway 不自动回滚，也不自动重放结果未知的批次。
 
@@ -195,7 +219,7 @@ npm run smoke:build
 npm run smoke:build -- --model
 ```
 
-默认使用 Gateway、WebSocket、JSON-RPC 模拟后端，检查显示审批、确认前零写入、确认后两批写入及四格读回、重复审批不重放写入。`--model` 使用真实 Codex app-server 与真实模型，连接具有临时 JSON 世界状态的独立 MCP 测试服务，额外验证结构化计划和截图检查通道，会使用账户模型额度。全部写入仅发生在临时模拟数据中，不连接 Minecraft。
+默认使用 Gateway、WebSocket、JSON-RPC 模拟后端，检查显示审批、确认前零写入、确认后两批写入及四格读回、重复审批不重放写入。`--model` 使用真实 Codex app-server 与真实模型，连接具有临时 JSON 世界状态的独立 MCP 测试服务，额外验证结构化计划、写入和读回通道，会使用账户模型额度。全部写入仅发生在临时模拟数据中，不连接 Minecraft。
 
 建造测试图片是 128×128 的棋盘占位图，不能作为建筑外观证据。详细结果和真实游戏验收见 [Phase 3 报告](PHASE3_REPORT.md)。
 
@@ -281,6 +305,6 @@ Phase 3 小型建筑闭环已于 2026-11-11 在同一 Windows/Fabric 环境中�
 - [x] 关闭建筑模式时仍保持聊天/只读行为，不会写入。
 - [x] 方案生成后世界不变，确认后才按固定批次执行。
 - [x] `!codex approve` 和 `!codex reject` 可省略 task-id。
-- [x] 写入后逐批读回，最终区域和截图检查正常。
+- [x] 写入后逐批读回，最终区域校验正常；建造后不启动额外视觉复核。
 - [x] 拒绝、退出、切换世界和配置过期会使旧审批失效。
 - [x] 默认审批不过期，建筑模型回复超时为 15 分钟。

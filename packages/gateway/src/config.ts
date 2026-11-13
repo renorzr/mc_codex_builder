@@ -22,7 +22,8 @@ export const configSchema = z.object({
     maxDistance: z.number().int().min(1).max(64).default(32),
     allowOverwrite: z.boolean().default(false),
     approvalTimeoutMs: z.number().int().min(0).max(600000).default(0),
-  }).strict().default({ enabled: false, maxBlocks: 2048, maxDistance: 32, allowOverwrite: false, approvalTimeoutMs: 0 }),
+    blockedCommands: z.array(z.string().min(1).max(64).regex(/^[a-z][a-z0-9_:-]*$/)).max(128).default(["op","deop","ban","ban-ip","pardon","pardon-ip","kick","whitelist","stop","save-off","save-on","reload","function","datapack","execute","schedule"]),
+  }).strict().default({ enabled: false, maxBlocks: 2048, maxDistance: 32, allowOverwrite: false, approvalTimeoutMs: 0, blockedCommands: ["op","deop","ban","ban-ip","pardon","pardon-ip","kick","whitelist","stop","save-off","save-on","reload","function","datapack","execute","schedule"] }),
   world: z.object({
     enabled: z.boolean().default(false),
     mcpServerPath: z.string().min(1).optional(),
@@ -34,7 +35,12 @@ export const configSchema = z.object({
     args: z.array(z.string()).default(["app-server", "--listen", "stdio://"]),
     requestTimeoutMs: z.number().int().min(100).max(120000).default(30000),
     turnTimeoutMs: z.number().int().min(100).max(1800000).default(180000),
-  }).strict().default({ command: "codex", args: ["app-server", "--listen", "stdio://"], requestTimeoutMs: 30000, turnTimeoutMs: 180000 }),
+    reasoningEffort: z.enum(["low", "medium", "high"]).default("medium"),
+    permissions: z.object({
+      localFiles: z.boolean().default(false),
+      network: z.boolean().default(false),
+    }).strict().default({ localFiles: false, network: false }),
+  }).strict().default({ command: "codex", args: ["app-server", "--listen", "stdio://"], requestTimeoutMs: 30000, turnTimeoutMs: 180000, reasoningEffort: "medium", permissions: { localFiles: false, network: false } }),
 }).strict().superRefine((config, context) => {
   if (config.building.enabled && !config.world.enabled) context.addIssue({ code: "custom", path: ["world"], message: "建造需要启用世界观察" });
   if (config.world.enabled && config.backend !== "codex") context.addIssue({ code: "custom", path: ["backend"], message: "世界观察需要 codex 后端" });

@@ -18,13 +18,14 @@ async function setup(t: TestContext, scenario = "build-good", overrides = {}) {
   const config = configSchema.parse({ backend: "codex", dataDir, world: { enabled: true, mcpServerPath: fixture }, building: { enabled: true, ...overrides },
     codex: { command: process.execPath, args: [fixture, log, scenario], requestTimeoutMs: 2000, turnTimeoutMs: 5000 } });
   const backend = new CodexBackend(config);
-  const manager = new TaskManager(backend, 20, () => {}, () => {});
+  const statuses: string[] = [];
+  const manager = new TaskManager(backend, 20, task => statuses.push(task.status), () => {});
   await manager.setWorld("world");
   t.after(async () => { await manager.close(); await rm(dataDir, { recursive: true, force: true }); });
   const messages = async () => (await readFile(log, "utf8").catch(() => "")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line));
   const writes = async () => (await messages()).filter(m => m.method === "mcpServer/tool/call" && ["set_block", "fill_blocks"].includes(m.params.tool));
   const task = () => manager.list("world")[0]!;
-  return { backend, manager, messages, writes, task, config };
+  return { backend, manager, statuses, messages, writes, task, config };
 }
 
 test("building stays disabled unless observation is enabled", () => {
@@ -40,8 +41,60 @@ test("approval remains valid without a configured deadline", async t => {
   await new Promise(resolve => setTimeout(resolve, 150));
   s.manager.approve("world");
   await until(() => s.task().status === "COMPLETED");
+  assert.equal(s.statuses.includes("VERIFYING"), false);
   assert.equal((await s.writes()).length, 2);
 });
+test("rollback restores the last build directly without approval", async t => {
+  const s = await setup(t, "build-good");
+  const build = s.manager.submit("world", "建造小塔");
+  await until(() => s.manager.list("world").find(task => task.id === build.id)?.status === "AWAITING_APPROVAL");
+  s.manager.approve("world", build.id);
+  await until(() => s.manager.list("world").find(task => task.id === build.id)?.status === "COMPLETED");
+  const completedBuild = s.manager.list("world").find(task => task.id === build.id)!;
+  const beforeWrites = (await s.writes()).length;
+  const rollback = s.manager.submitRollback("world");
+  await until(() => s.manager.list("world").find(task => task.id === rollback.id)?.status === "COMPLETED");
+  const result = s.manager.list("world").find(task => task.id === rollback.id)!;
+  assert.equal(result.status, "COMPLETED");
+  assert.equal(result.build, undefined);
+  assert((await s.writes()).length > beforeWrites);
+  const manifest = JSON.parse(await readFile(s.config.dataDir + "/rollbacks/" + completedBuild.build?.fingerprint + ".json", "utf8"));
+  assert.equal(typeof manifest.rolledBackAt, "string");
+});
+
+test("message-only build responses complete without creating a plan or writing blocks", async t => {
+  const s = await setup(t, "build-no-plan");
+  s.manager.submit("world", "要真的灯啊 会亮的");
+  await until(() => s.task().status === "COMPLETED");
+  assert.equal(s.task().build, undefined);
+  assert.match(s.task().result ?? "", /没有生成计划/);
+  assert.equal((await s.writes()).length, 0);
+});
+
+test("structured commands execute before block operations", async t => {
+  const s = await setup(t, "build-command", { allowOverwrite: true });
+  s.manager.submit("world", "复制区域后放灯");
+  await until(() => s.task().status === "AWAITING_APPROVAL");
+  assert.deepEqual(s.task().build?.commands, ["clone 0 64 0 1 64 0 20 64 20"]);
+  s.manager.approve("world");
+  await until(() => s.task().status === "COMPLETED");
+  const calls = (await s.messages()).filter(m => m.method === "mcpServer/tool/call").map(m => m.params.tool);
+  const commandIndex = calls.indexOf("run_command");
+  const writeIndex = calls.findIndex(tool => tool === "set_block" || tool === "fill_blocks");
+  assert.equal(commandIndex >= 0, true);
+  assert.equal(writeIndex > commandIndex, true);
+});
+
+test("failed structured command stops before any block write", async t => {
+  const s = await setup(t, "build-command-error", { allowOverwrite: true });
+  s.manager.submit("world", "复制失败后不要写入");
+  await until(() => s.task().status === "AWAITING_APPROVAL");
+  s.manager.approve("world");
+  await until(() => s.task().status === "FAILED");
+  assert.match(s.task().error ?? "", /计划命令执行失败/);
+  assert.equal((await s.writes()).length, 0);
+});
+
 test("no writes before approval; executes and verifies an approved immutable plan exactly once", async t => {
   const s = await setup(t);
   const task = s.manager.submit("world", "建造小石砖柱");
@@ -62,7 +115,7 @@ test("no writes before approval; executes and verifies an approved immutable pla
   const requests = await s.messages();
   const writer = requests.find(m => m.method === "thread/start" && m.params.config["mcp_servers.mccodex_execute.enabled"]);
   assert(writer);
-  assert.equal(requests.filter(m => m.method === "turn/start").length, 2); // planning + visual review, neither on writer
+  assert.equal(requests.filter(m => m.method === "turn/start").length, 1); // planning only; no post-build visual review
   assert(requests.filter(m => m.method === "turn/start").every(m => m.params.threadId === "fixture-thread-1"));
 });
 
@@ -117,6 +170,9 @@ test("overwriting is counted and requires explicit configuration plus approval",
   const task = s.manager.submit("world", "替换模拟柱");
   await until(() => s.task().status === "AWAITING_APPROVAL");
   assert.equal(s.task().build?.overwrittenBlocks, 4);
+  const started = (await s.messages()).find(m => m.method === "thread/start")!;
+  assert.match(started.params.developerInstructions, /当前 allowOverwrite=true/);
+  assert.match(started.params.developerInstructions, /允许计划覆盖现有非空气方块/);
   assert.equal((await s.writes()).length, 0);
   s.manager.approve("world", task.id);
   await until(() => s.task().status === "COMPLETED");
